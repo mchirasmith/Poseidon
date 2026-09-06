@@ -34,3 +34,20 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+## Precomputed data (no backend needed)
+
+The section and report pages read static files from `public/fallback`, written by
+`backend/scripts/run_all.py` (stage `precompute`, module `backend/eval/precompute.py`):
+
+- `meta.json` — model version, grid, `curated_days` (the only dates the section page offers).
+- `report.json` — evaluation on the held-out 2019–2020 days: per-depth RMSE / bias / correlation /
+  skill for lite, GBM and climatology, Argo matchup stats, calibration coverage.
+- `days/<date>/fields.bin` + `fields.json` — float16 mean, sigma and GLORYS temperature on the 15
+  standard depths over the whole grid (about 2 MB per day); `src/lib/fallback.ts` cuts a vertical
+  section along any transect in the browser with the backend's nearest-cell, D20 and MLD rules.
+- `days/<date>/argo.json` — Argo float positions within ±2 days, matched within 55 km of the line.
+- `days/<date>/sections/<preset>.json`, `day.json`, `profile.json`, `tiles/` — the API's own
+  responses for the same day, kept for parity checks and the depth-plane tiles.
+
+Regenerate after retraining; the bundle is committed so a static deploy (`npm run build`) is self-contained.

@@ -173,8 +173,6 @@ def train(cfg_path: str, data_dir: str, art_dir: str, on_step=None) -> Path:
             # the per-pixel depth-attention head allocates several GB of scratch per step;
             # the caching allocator won't return it to the driver on its own
             torch.mps.empty_cache()
-        elif device == "cuda":
-            torch.cuda.empty_cache()
 
         if on_step is not None:
             on_step(step)

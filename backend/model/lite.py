@@ -26,6 +26,10 @@ def _dwsep_conv(c: int) -> nn.Sequential:
     return nn.Sequential(nn.Conv2d(c, c, 3, padding=1, groups=c), nn.Conv2d(c, c, 1))
 
 
+LOGSIGMA_BOUND = 4.0  # sigma stays within e^-4 .. e^4 normalised units, with gradient everywhere
+COAST_DISTANCE_CHANNEL = 2
+COAST_DISTANCE_SCALE_KM = 1000.0
+
 class ResBlock(nn.Module):
     def __init__(self, c: int):
         super().__init__()
@@ -74,6 +78,8 @@ class DepthAttnHead(nn.Module):
             out = self._attend(kv)
         mean = (out[..., 0] + self.mean_bias).reshape(B, H, W, -1).permute(0, 3, 1, 2)
         logsigma = (out[..., 1] + self.logsigma_bias).reshape(B, H, W, -1).permute(0, 3, 1, 2)
+        # smooth bound: a hard clamp stops the gradient once sigma has blown up and the head never recovers
+        logsigma = LOGSIGMA_BOUND * torch.tanh(logsigma / LOGSIGMA_BOUND)
         return mean, logsigma
 
 
@@ -95,6 +101,10 @@ class Lite(nn.Module):
         w0, w1, w2 = width
         dw0, dw1 = decoder_width
 
+        # static channels are (wet, bottom depth / max depth, coast distance in km); the last one is O(1000)
+        static_scale = torch.ones(static_channels)
+        static_scale[COAST_DISTANCE_CHANNEL] = 1.0 / COAST_DISTANCE_SCALE_KM
+        self.register_buffer("static_scale", static_scale.view(1, -1, 1, 1))
         self.stem = nn.Sequential(nn.Conv2d(c_in, w0, 3, padding=1), nn.GroupNorm(_groups(w0), w0), nn.SiLU())
         self.enc1 = nn.Sequential(ResBlock(w0), ResBlock(w0))
         self.down1 = nn.Conv2d(w0, w1, 3, stride=2, padding=1)
@@ -126,6 +136,6 @@ class Lite(nn.Module):
         u2 = F.interpolate(u1, size=s0.shape[-2:], mode="bilinear", align_corners=False)
         u2 = self.dec_act(self.dec2(torch.cat([u2, s0], dim=1)))
 
-        latent = torch.cat([u2, static], dim=1)
+        latent = torch.cat([u2, static * self.static_scale], dim=1)
         mean, logsigma = self.head(latent)
         return mean, logsigma, embedding
