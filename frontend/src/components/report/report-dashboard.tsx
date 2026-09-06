@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { ArrowLeft, Waves } from "lucide-react";
 import { MetricShell, ReportPanel } from "@/components/report/report-primitives";
@@ -190,6 +190,11 @@ function TableShell({
 
 export function ReportDashboard() {
   const [isLoading, setIsLoading] = useState(true);
+  const [isLayerLoading, setIsLayerLoading] = useState(false);
+  const [loadingTitle, setLoadingTitle] = useState("Loading Validation Report");
+  const [loadingSubtitle, setLoadingSubtitle] = useState(
+    "Fetching locked test-set benchmarks (2019–2020) and Argo matchup stats..."
+  );
   const [selectedIndex, setSelectedIndex] = useState<number>(7); // Default to 100m
   const selectedLayer = OCEAN_DEPTH_LAYERS[selectedIndex];
 
@@ -197,6 +202,23 @@ export function ReportDashboard() {
     const timer = setTimeout(() => setIsLoading(false), 700);
     return () => clearTimeout(timer);
   }, []);
+
+  const handleSelectIndex = useCallback(
+    (index: number) => {
+      if (index === selectedIndex) return;
+      const targetLayer = OCEAN_DEPTH_LAYERS[index];
+      setLoadingTitle(`Evaluating ${targetLayer.depth} m Depth Tier`);
+      setLoadingSubtitle(
+        `Retrieving independent Argo matchup benchmarks and calibration for ${targetLayer.depth} m (${targetLayer.zone})...`
+      );
+      setIsLayerLoading(true);
+      setSelectedIndex(index);
+      setTimeout(() => {
+        setIsLayerLoading(false);
+      }, 550);
+    },
+    [selectedIndex]
+  );
 
   const dynamicMetrics = useMemo(() => {
     const baseline = selectedLayer.rmseClimatology;
@@ -332,9 +354,13 @@ export function ReportDashboard() {
   return (
     <>
       <TrackShiftSpinner
-        isLoading={isLoading}
-        title="Loading Validation Report"
-        subtitle="Fetching locked test-set benchmarks (2019–2020) and Argo matchup stats..."
+        isLoading={isLoading || isLayerLoading}
+        title={isLoading ? "Loading Validation Report" : loadingTitle}
+        subtitle={
+          isLoading
+            ? "Fetching locked test-set benchmarks (2019–2020) and Argo matchup stats..."
+            : loadingSubtitle
+        }
         isFullPage={true}
       />
 
@@ -342,7 +368,7 @@ export function ReportDashboard() {
       <div className="relative mx-auto max-w-7xl">
         <ReportHeader layer={selectedLayer} />
         <section className="mt-5">
-          <SkillByDepthShell selectedIndex={selectedIndex} onSelectIndex={setSelectedIndex} />
+          <SkillByDepthShell selectedIndex={selectedIndex} onSelectIndex={handleSelectIndex} />
         </section>
         <section className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-label="Headline metrics">
           {dynamicMetrics.map((metric) => (

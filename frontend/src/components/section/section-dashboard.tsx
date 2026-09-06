@@ -15,6 +15,7 @@ import {
   generateSectionData,
   type SectionMode,
   type TransectCoordinate,
+  type TransectPreset,
 } from "@/lib/section";
 
 export function SectionDashboard() {
@@ -57,12 +58,26 @@ export function SectionDashboard() {
 
   // Loading states
   const [isInitialLoading, setIsInitialLoading] = useState(true);
-  const [isDateLoading, setIsDateLoading] = useState(false);
+  const [isTaskLoading, setIsTaskLoading] = useState(false);
+  const [loadingTitle, setLoadingTitle] = useState("Computing Vertical Section");
+  const [loadingSubtitle, setLoadingSubtitle] = useState(
+    "Running Poseidon neural inversion across 15 depth tiers, please wait (this takes a few seconds)..."
+  );
 
   // Overlay visibility states
   const [showD20, setShowD20] = useState(true);
   const [showMLD, setShowMLD] = useState(true);
   const [showArgo, setShowArgo] = useState(true);
+
+  // Helper to trigger smooth full-page loading spinner on any user task
+  const triggerLoading = useCallback((title: string, subtitle: string, duration = 650) => {
+    setLoadingTitle(title);
+    setLoadingSubtitle(subtitle);
+    setIsTaskLoading(true);
+    setTimeout(() => {
+      setIsTaskLoading(false);
+    }, duration);
+  }, []);
 
   // Initial page load simulation
   useEffect(() => {
@@ -90,17 +105,66 @@ export function SectionDashboard() {
     return generateSectionData(coordA, coordB, date);
   }, [coordA, coordB, date]);
 
-  // Handle date change with animated loading spinner
+  // Handle date change with animated full-page loading spinner
   const handleDateChange = useCallback(
     (newDate: string) => {
       if (newDate === date) return;
-      setIsDateLoading(true);
       setDate(newDate);
-      setTimeout(() => {
-        setIsDateLoading(false);
-      }, 650);
+      triggerLoading(
+        "Updating Ocean Inversion",
+        `Re-computing 3D vertical thermal section for ${newDate}...`,
+        700
+      );
     },
-    [date]
+    [date, triggerLoading]
+  );
+
+  // Handle preset selection with animated loading spinner
+  const handlePresetSelect = useCallback(
+    (preset: TransectPreset) => {
+      setCoordA(preset.a);
+      setCoordB(preset.b);
+      triggerLoading(
+        `Loading ${preset.name}`,
+        `Re-projecting transect track across ${preset.basin.toUpperCase()} (${preset.a.lat}°N, ${preset.a.lon}°E → ${preset.b.lat}°N, ${preset.b.lon}°E)...`,
+        650
+      );
+    },
+    [triggerLoading]
+  );
+
+  // Handle mode change with animated loading spinner
+  const handleModeChange = useCallback(
+    (newMode: SectionMode) => {
+      if (newMode === mode) return;
+      setMode(newMode);
+      const modeNames: Record<SectionMode, string> = {
+        poseidon: "Poseidon Model Prediction",
+        glorys: "GLORYS Reanalysis Baseline",
+        diff: "Model vs Baseline Difference",
+        sigma: "Ensemble Uncertainty Spread (1σ)",
+      };
+      triggerLoading(
+        `Switching to ${modeNames[newMode]}`,
+        "Recalculating cross-section thermal field and contours...",
+        500
+      );
+    },
+    [mode, triggerLoading]
+  );
+
+  // Handle depth slice change with animated loading spinner
+  const handleDepthChange = useCallback(
+    (newDepth: number) => {
+      if (newDepth === mapDepth) return;
+      setMapDepth(newDepth);
+      triggerLoading(
+        `Slicing Ocean at ${newDepth} m Depth`,
+        `Extracting horizontal depth plane from 3D volume at ${newDepth} m...`,
+        500
+      );
+    },
+    [mapDepth, triggerLoading]
   );
 
   // Check matching preset
@@ -186,82 +250,74 @@ export function SectionDashboard() {
     setCoordB(newB);
   }, []);
 
-  // Initial Full-Page Loading Spinner
-  if (isInitialLoading) {
-    return (
+  return (
+    <>
       <TrackShiftSpinner
-        isLoading={true}
-        title="Computing Vertical Section"
-        subtitle="Running Poseidon neural inversion across 15 depth tiers, please wait (this takes a few seconds)..."
+        isLoading={isInitialLoading || isTaskLoading}
+        title={isInitialLoading ? "Computing Vertical Section" : loadingTitle}
+        subtitle={
+          isInitialLoading
+            ? "Running Poseidon neural inversion across 15 depth tiers, please wait (this takes a few seconds)..."
+            : loadingSubtitle
+        }
         isFullPage={true}
       />
-    );
-  }
 
-  return (
-    <main className="relative min-h-screen px-4 pb-8 pt-6 text-white sm:px-6 sm:pt-8 lg:px-8">
-      <div className="relative mx-auto max-w-7xl">
-        {/* Header Strip */}
-        <SectionHeader
-          date={date}
-          preset={matchedPreset}
-          totalDistanceKm={sectionData.totalDistanceKm}
-          isLoading={isDateLoading}
-          onDateChange={handleDateChange}
-        />
+      <main className="relative min-h-screen px-4 pb-8 pt-6 text-white sm:px-6 sm:pt-8 lg:px-8">
+        <div className="relative mx-auto max-w-7xl">
+          {/* Header Strip */}
+          <SectionHeader
+            date={date}
+            preset={matchedPreset}
+            totalDistanceKm={sectionData.totalDistanceKm}
+            isLoading={isTaskLoading}
+            onDateChange={handleDateChange}
+          />
 
-        {/* Section 1: Transect Navigation Map */}
-        <section className="mt-5">
-          <ReportPanel
-            title="Transect navigation · North Indian Ocean (A → B)"
-            description="Interactive great-circle ocean transect across custom coordinates or oceanographic presets at depth."
-          >
-            <TransectMap
-              a={coordA}
-              b={coordB}
-              depthM={mapDepth}
-              totalDistanceKm={sectionData.totalDistanceKm}
-              onCoordinatesChange={handleCoordinatesChange}
-              onDepthChange={setMapDepth}
-            />
-          </ReportPanel>
-        </section>
+          {/* Section 1: Transect Navigation Map */}
+          <section className="mt-5">
+            <ReportPanel
+              title="Transect navigation · North Indian Ocean (A → B)"
+              description="Interactive great-circle ocean transect across custom coordinates or oceanographic presets at depth."
+            >
+              <TransectMap
+                a={coordA}
+                b={coordB}
+                depthM={mapDepth}
+                totalDistanceKm={sectionData.totalDistanceKm}
+                onCoordinatesChange={handleCoordinatesChange}
+                onDepthChange={handleDepthChange}
+                onPresetSelect={handlePresetSelect}
+              />
+            </ReportPanel>
+          </section>
 
-        {/* Section 2: Headline Metric Cards */}
-        <section className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-label="Headline metrics">
-          {dynamicMetrics.map((metric) => (
-            <MetricShell key={metric.label} metric={metric} />
-          ))}
-        </section>
+          {/* Section 2: Headline Metric Cards */}
+          <section className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-label="Headline metrics">
+            {dynamicMetrics.map((metric) => (
+              <MetricShell key={metric.label} metric={metric} />
+            ))}
+          </section>
 
-        {/* Section 3: Vertical Stratification Heatmap */}
-        <section className="mt-6">
-          <ReportPanel
-            title="Vertical Stratification Heatmap · 0 m to 1000 m"
-            description="High-resolution depth vs distance vertical cross-section with D20 thermocline, mixed layer depth, and collocated Argo float profiles."
-            className="relative"
-          >
-            {/* Smooth loading overlay when switching dates */}
-            <TrackShiftSpinner
-              isLoading={isDateLoading}
-              title={`Reconstructing Vertical Section · ${date}`}
-              subtitle={`Inverting 15-layer temperature stratification from surface satellite fields for ${date}...`}
-              isFullPage={false}
-            />
-
-            <SectionControls
-              mode={mode}
-              onModeChange={setMode}
-              showD20={showD20}
-              onToggleD20={() => setShowD20((v) => !v)}
-              showMLD={showMLD}
-              onToggleMLD={() => setShowMLD((v) => !v)}
-              showArgo={showArgo}
-              onToggleArgo={() => setShowArgo((v) => !v)}
-              meanD20={meanD20}
-              meanMLD={meanMLD}
-              argoCount={sectionData.argo_markers.length}
-            />
+          {/* Section 3: Vertical Stratification Heatmap */}
+          <section className="mt-6">
+            <ReportPanel
+              title="Vertical Stratification Heatmap · 0 m to 1000 m"
+              description="High-resolution depth vs distance vertical cross-section with D20 thermocline, mixed layer depth, and collocated Argo float profiles."
+            >
+              <SectionControls
+                mode={mode}
+                onModeChange={handleModeChange}
+                showD20={showD20}
+                onToggleD20={() => setShowD20((v) => !v)}
+                showMLD={showMLD}
+                onToggleMLD={() => setShowMLD((v) => !v)}
+                showArgo={showArgo}
+                onToggleArgo={() => setShowArgo((v) => !v)}
+                meanD20={meanD20}
+                meanMLD={meanMLD}
+                argoCount={sectionData.argo_markers.length}
+              />
             <SectionHeatmap
               data={sectionData}
               mode={mode}
@@ -281,5 +337,6 @@ export function SectionDashboard() {
         </footer>
       </div>
     </main>
+    </>
   );
 }

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { OCEAN_DEPTHS_M, OCEAN_LAYER_COUNT } from "@/lib/depths";
+import { TrackShiftSpinner } from "@/components/ui/trackshift-spinner";
 
 const INITIAL_LAYER_INDEX = 7;
 const MAX_BLURRED_SHALLOW_LAYERS = 9;
@@ -31,6 +32,9 @@ function getLayerAppearance(index: number, selectedIndex: number) {
 
 export function OceanLayerExplorer() {
   const [selectedIndex, setSelectedIndex] = useState(INITIAL_LAYER_INDEX);
+  const [isLayerLoading, setIsLayerLoading] = useState(false);
+  const [loadingTitle, setLoadingTitle] = useState("Loading 3D Depth Slice");
+  const [loadingSubtitle, setLoadingSubtitle] = useState("Initializing layer...");
   const prefersReducedMotion = useReducedMotion();
   const selectedDepth = OCEAN_DEPTHS_M[selectedIndex];
 
@@ -43,13 +47,27 @@ export function OceanLayerExplorer() {
 
   const selectLayer = (index: number) => {
     const nextIndex = clampLayerIndex(index);
+    if (nextIndex === selectedIndex) return;
+    setLoadingTitle(`Navigating to ${OCEAN_DEPTHS_M[nextIndex]} m Layer`);
+    setLoadingSubtitle(`Re-orienting 3D volume stack to depth ${OCEAN_DEPTHS_M[nextIndex]} m...`);
+    setIsLayerLoading(true);
     setSelectedIndex(nextIndex);
     const params = new URLSearchParams(window.location.search);
     params.set("z", String(OCEAN_DEPTHS_M[nextIndex]));
     window.history.pushState(null, "", `${window.location.pathname}?${params.toString()}`);
+    setTimeout(() => {
+      setIsLayerLoading(false);
+    }, 500);
   };
 
   return (
+    <>
+      <TrackShiftSpinner
+        isLoading={isLayerLoading}
+        title={loadingTitle}
+        subtitle={loadingSubtitle}
+        isFullPage={true}
+      />
     <section aria-labelledby="depth-stack-title" className="mt-6 rounded-[28px] border border-white/20 bg-neutral-950/70 p-4 shadow-[inset_0_1px_1px_rgba(255,255,255,0.24),0_18px_48px_rgba(0,0,0,0.38)] backdrop-blur-2xl sm:p-6">
       <div className="flex flex-col gap-3 border-b border-white/15 pb-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
@@ -87,5 +105,6 @@ export function OceanLayerExplorer() {
         <p id="depth-selection-status" className="sr-only" role="status">Layer {selectedIndex + 1} of {OCEAN_LAYER_COUNT}, {selectedDepth} metres selected. Visual scaffold; no data connected.</p>
       </div>
     </section>
+    </>
   );
 }
