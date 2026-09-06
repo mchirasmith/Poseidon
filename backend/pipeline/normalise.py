@@ -36,7 +36,7 @@ def accumulate_stats(stats: dict, anomaly: np.ndarray, mask: np.ndarray) -> None
 
 
 def solve_stats(stats: dict) -> tuple[float, float]:
-    """Mean/std from accumulated sufficient statistics, same result as fit_normalise on the full record."""
+    """Mean/std from accumulated sufficient statistics."""
     if stats["count"] == 0:
         return 0.0, 1.0
     mean = stats["sum"] / stats["count"]

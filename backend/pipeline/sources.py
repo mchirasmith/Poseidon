@@ -4,7 +4,7 @@ One place to change a product, the box, or a split boundary.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import date
 
 import numpy as np

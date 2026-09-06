@@ -87,6 +87,7 @@ def main() -> None:
     p.add_argument("--start", default="2016-01-01")
     p.add_argument("--end", default="2020-12-31")
     p.add_argument("--seed", type=int, default=0)
+    p.add_argument("--workers", type=int, default=None, help="parallel download workers passed to pipeline.run")
     p.add_argument("--cfg", default="configs/lite.yaml")
     p.add_argument("--gbm-cfg", default="configs/gbm.yaml")
     p.add_argument("--data-dir", default="data")
@@ -128,6 +129,8 @@ def main() -> None:
             ]
         else:
             cmd = [py, "-m", "pipeline.run", "--data-dir", str(data_dir), "--years", args.years]
+            if args.workers is not None:
+                cmd += ["--workers", str(args.workers)]
         _stage("data", _marker_data(data_dir), cmd, args.force)
 
     if wanted("gbm"):

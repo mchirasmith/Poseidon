@@ -25,22 +25,31 @@ def _year_train_days(store: Store, y0: int, y1: int) -> np.ndarray:
 
 
 def collect_rows(store: Store, days: np.ndarray, rows_budget: int, rng: np.random.Generator):
-    """Concatenate per-day features and per-depth targets/masks, subsampled to rows_budget cells."""
+    """Sample (day, cell) pairs first, then build features only for the days actually sampled.
+
+    The wet-cell set is the same every day, so total rows = len(days) * n_wet_cells and a flat
+    row index can be sampled directly without ever building features for the full day range.
+    """
+    n_cells = int((store.wet == 1).sum())
+    total = len(days) * n_cells
+    if total == 0:
+        empty = np.empty((0, len(FEATURE_COLUMNS)), dtype=np.float32)
+        return empty, np.empty((0, len(DEPTHS_M)), dtype=np.float32), np.empty((0, len(DEPTHS_M)), dtype=np.uint8)
+
+    n_rows = min(rows_budget, total)
+    flat_idx = rng.choice(total, size=n_rows, replace=False)
+    day_pos, cell_pos = flat_idx // n_cells, flat_idx % n_cells
+
     feat_chunks, y_chunks, mask_chunks = [], [], []
-    for t in days:
-        feats, (ii, jj) = build_features(store, int(t))
-        y, mask = store.day_target(int(t))
-        feat_chunks.append(feats)
-        y_chunks.append(y[:, ii, jj].T)
-        mask_chunks.append(mask[:, ii, jj].T)
-    feats_all = np.concatenate(feat_chunks, axis=0)
-    y_all = np.concatenate(y_chunks, axis=0)
-    mask_all = np.concatenate(mask_chunks, axis=0)
-    n = feats_all.shape[0]
-    if n > rows_budget:
-        idx = rng.choice(n, size=rows_budget, replace=False)
-        feats_all, y_all, mask_all = feats_all[idx], y_all[idx], mask_all[idx]
-    return feats_all, y_all, mask_all
+    for dp in np.unique(day_pos):
+        t = int(days[dp])
+        sel = cell_pos[day_pos == dp]
+        feats, (ii, jj) = build_features(store, t)
+        y, mask = store.day_target(t)
+        feat_chunks.append(feats[sel])
+        y_chunks.append(y[:, ii[sel], jj[sel]].T)
+        mask_chunks.append(mask[:, ii[sel], jj[sel]].T)
+    return np.concatenate(feat_chunks, axis=0), np.concatenate(y_chunks, axis=0), np.concatenate(mask_chunks, axis=0)
 
 
 def train_depth(feats: np.ndarray, y: np.ndarray, mask: np.ndarray, cfg: dict) -> lgb.Booster:

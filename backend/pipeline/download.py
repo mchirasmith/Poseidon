@@ -5,12 +5,14 @@ Never runs in tests: every function here needs network and/or credentials.
 from __future__ import annotations
 
 import json
+import os
 import shutil
 from pathlib import Path
 
 import pandas as pd
 import requests
 import xarray as xr
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from pipeline.interim import _std_dims
 from pipeline.sources import (
@@ -21,7 +23,6 @@ from pipeline.sources import (
     BOX_LON_MAX,
     BOX_LON_MIN,
     GLORYS_MAX_DEPTH_M,
-    PRODUCTS,
     CopernicusProduct,
     PodaacProduct,
 )
@@ -31,27 +32,59 @@ COPERNICUS_CRED_FILE = Path.home() / ".copernicusmarine" / ".copernicusmarine-cr
 NETRC_FILE = Path.home() / ".netrc"
 URS_HOST = "urs.earthdata.nasa.gov"
 ARGO_REQUEST_TIMEOUT_S = 60
+BACKEND_DIR = Path(__file__).resolve().parent.parent
+DEFAULT_ENV_FILE = BACKEND_DIR / ".env"
 
 
-def credentials_status() -> dict[str, bool]:
-    """Which of the two services can be used without prompting, for the CLI to check up front."""
-    import os
+class _CredentialEnv(BaseSettings):
+    """Field names double as the .env / environment variable names (uppercased)."""
 
-    copernicus = COPERNICUS_CRED_FILE.exists() or bool(
-        os.environ.get("COPERNICUSMARINE_SERVICE_USERNAME") and os.environ.get("COPERNICUSMARINE_SERVICE_PASSWORD")
-    )
-    podaac = bool(os.environ.get("EARTHDATA_USERNAME") and os.environ.get("EARTHDATA_PASSWORD"))
-    if not podaac and NETRC_FILE.exists():
-        podaac = URS_HOST in NETRC_FILE.read_text()
+    model_config = SettingsConfigDict(extra="ignore")
+    copernicusmarine_service_username: str | None = None
+    copernicusmarine_service_password: str | None = None
+    earthdata_username: str | None = None
+    earthdata_password: str | None = None
+
+
+def load_credentials() -> None:
+    """Load backend/.env (or $POSEIDON_ENV_FILE) into os.environ; real env vars always win."""
+    env_file = Path(os.environ.get("POSEIDON_ENV_FILE", DEFAULT_ENV_FILE))
+    if not env_file.exists():
+        return
+    creds = _CredentialEnv(_env_file=env_file)
+    for field, value in creds.model_dump().items():
+        if value and field.upper() not in os.environ:
+            os.environ[field.upper()] = value
+
+
+load_credentials()
+
+
+def credentials_status() -> dict[str, str | None]:
+    """Which source (env, store, netrc) satisfies each service, for the CLI to check up front."""
+    load_credentials()
+
+    copernicus = None
+    if os.environ.get("COPERNICUSMARINE_SERVICE_USERNAME") and os.environ.get("COPERNICUSMARINE_SERVICE_PASSWORD"):
+        copernicus = "env"
+    elif COPERNICUS_CRED_FILE.exists():
+        copernicus = "store"
+
+    podaac = None
+    if os.environ.get("EARTHDATA_USERNAME") and os.environ.get("EARTHDATA_PASSWORD"):
+        podaac = "env"
+    elif NETRC_FILE.exists() and URS_HOST in NETRC_FILE.read_text():
+        podaac = "netrc"
+
     return {"copernicus": copernicus, "podaac": podaac}
 
 
 def credentials_instructions(needed: set[str] | None = None) -> str:
-    lines = ["Missing credentials. Fix with:"]
+    lines = [f"Missing credentials. Fill in {DEFAULT_ENV_FILE} (see .env.example), or:"]
     if needed is None or "copernicus" in needed:
-        lines.append("  Copernicus Marine: `uv run copernicusmarine login`")
+        lines.append("  Copernicus Marine: set COPERNICUSMARINE_SERVICE_USERNAME/PASSWORD, or `uv run copernicusmarine login`")
     if needed is None or "podaac" in needed:
-        lines.append(f"  NASA Earthdata: add to {NETRC_FILE}:")
+        lines.append(f"  NASA Earthdata: set EARTHDATA_USERNAME/PASSWORD, or add to {NETRC_FILE}:")
         lines.append(f"    machine {URS_HOST} login <user> password <pass>")
         lines.append("    then `chmod 600 ~/.netrc`")
     return "\n".join(lines)
@@ -123,6 +156,12 @@ def download_copernicus_month(product: CopernicusProduct, year: int, month: int,
     )
     if product.name == "glorys":
         kwargs["maximum_depth"] = GLORYS_MAX_DEPTH_M
+    username = os.environ.get("COPERNICUSMARINE_SERVICE_USERNAME")
+    password = os.environ.get("COPERNICUSMARINE_SERVICE_PASSWORD")
+    if username and password:
+        # explicit creds when set via env/.env; otherwise fall back to the toolbox's own credential store
+        kwargs["username"] = username
+        kwargs["password"] = password
     copernicusmarine.subset(**kwargs)
     mark_done(raw_dir, product.name, month_key)
     return out_dir / out_file
@@ -133,7 +172,7 @@ def _podaac_login():
     import earthaccess
     from earthaccess.exceptions import LoginStrategyUnavailable
 
-    for strategy in ("netrc", "environment"):
+    for strategy in ("environment", "netrc"):
         try:
             auth = earthaccess.login(strategy=strategy)
         except LoginStrategyUnavailable:

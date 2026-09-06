@@ -48,11 +48,13 @@ def write(
         ds.createDimension("longitude", W)
 
         time_var = ds.createVariable("time", "f8", ("time",))
+        time_var.standard_name = "time"
         time_var.units = "days since 1970-01-01"
         time_var.calendar = "gregorian"
         time_var[:] = [(np.datetime64(date, "D") - np.datetime64("1970-01-01", "D")).astype(np.int64)]
 
         depth_var = ds.createVariable("depth", "f4", ("depth",))
+        depth_var.standard_name = "depth"
         depth_var.positive = "down"
         depth_var.units = "m"
         depth_var.axis = "Z"
@@ -97,6 +99,7 @@ def write(
             "prediction_status", "u1", ("depth", "latitude", "longitude"),
             zlib=True, complevel=ZLIB_LEVEL, chunksizes=(D, H, W),
         )
+        status_var.long_name = "prediction status"
         status_var.flag_values = np.array([STATUS_VALID, STATUS_LAND, STATUS_BELOW_SEAFLOOR], dtype=np.uint8)
         status_var.flag_meanings = "valid land below_seafloor"
         status_var[:] = _prediction_status(wet, bottom)

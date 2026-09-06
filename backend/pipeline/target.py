@@ -15,7 +15,6 @@ def to_standard_depths(profile: np.ndarray, source_depths: np.ndarray) -> np.nda
     QC'd ocean profiles (missing values only appear below the seafloor).
     """
     flat = profile.reshape(-1, profile.shape[-1]).astype(np.float64)
-    n = flat.shape[0]
     order = np.argsort(source_depths)
     src = np.asarray(source_depths, dtype=np.float64)[order]
     vals = flat[:, order]

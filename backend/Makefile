@@ -41,7 +41,7 @@ scales:
 	uv run python scripts/make_scales.py
 
 cf-check:
-	uv run compliance-checker --test cf:1.10 data/cache/**/*.nc
+	UDUNITS2_XML_PATH=$$(brew --prefix udunits)/share/udunits/udunits2.xml uv run --with compliance-checker compliance-checker --test cf:1.10 $(or $(NC),fixtures/download/poseidon_lite_2020-01-15.nc)
 
 all:
 	uv run python scripts/run_all.py --years $(or $(YEARS),2016-2020) --cfg $(or $(CFG),configs/lite.yaml)

@@ -69,7 +69,7 @@ def fit_evaluate(values: np.ndarray, mask: np.ndarray, doy_train: np.ndarray) ->
 
 
 def init_accumulator(n_cells: int) -> dict:
-    """State for streaming the normal-equation sums fit_evaluate computes over a full (T, H, W) array."""
+    """Zeroed running normal-equation sums for one channel's streamed harmonic fit."""
     return {
         "AtA": np.zeros((n_cells, N_COEFFS, N_COEFFS)),
         "Atb": np.zeros((n_cells, N_COEFFS)),
@@ -94,7 +94,7 @@ def accumulate(acc: dict, values: np.ndarray, mask: np.ndarray, doy_chunk: np.nd
 
 
 def solve(acc: dict, H: int, W: int) -> tuple[np.ndarray, np.ndarray]:
-    """Ridge-solve the accumulated normal equations, same result as fit_evaluate on the full record."""
+    """Ridge-solve the accumulated normal equations into per-cell coeffs and a 366-day climatology."""
     AtA, Atb, counts, month_counts = acc["AtA"], acc["Atb"], acc["counts"], acc["month_counts"]
     diag_scale = np.diagonal(AtA, axis1=1, axis2=2).mean(axis=1)
     ridge = RIDGE_EPS * diag_scale + RIDGE_ABS_FLOOR

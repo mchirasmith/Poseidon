@@ -11,9 +11,11 @@ emb_dim: 8
 width: [8, 16, 24]
 decoder_width: [16, 12]
 attn_heads: 4
+head_chunk: 1024
 depth_tokens: 4
 loss: {nll: 1.0, vgrad: 0.3, thermocline_w: 1.5}
-device: cpu
+device: auto  # cuda if available, else mps, else cpu
+mps_memory_fraction: 0.5
 in_ram: true
 eval_every: 10
 ema_decay: 0.999

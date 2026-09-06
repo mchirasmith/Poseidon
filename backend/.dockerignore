@@ -1,0 +1,11 @@
+.venv
+.env
+data
+data-*
+artifacts
+artifacts-*
+*.zarr
+cache
+__pycache__
+*.pyc
+.pytest_cache

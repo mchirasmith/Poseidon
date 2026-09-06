@@ -1,4 +1,8 @@
-"""One evaluation harness for climatology, gbm and lite on the test split; writes report.json/.md."""
+"""One evaluation harness for climatology, gbm and lite on the test split; writes report.json/.md.
+
+Streams over test days: accumulates sums per (model, depth, basin, season) instead of stacking
+every day's fields, so peak memory stays flat regardless of how long the test split is.
+"""
 from __future__ import annotations
 
 import argparse
@@ -17,17 +21,16 @@ from pipeline.sources import DEPTHS_M, SPLIT_TEST
 BASINS = ["overall", "arabian_sea", "bay_of_bengal"]
 SEASONS = ["all", "DJF", "MAM", "JJAS", "ON"]
 THERMOCLINE_MIN_M, THERMOCLINE_MAX_M = 50.0, 200.0
+THERM_BAND = (DEPTHS_M >= THERMOCLINE_MIN_M) & (DEPTHS_M <= THERMOCLINE_MAX_M)
 DEPTH_100M_IDX = int(np.where(DEPTHS_M == 100.0)[0][0])
+SPATIAL_POWER_GRID_STEP_DEG = 0.25
 MAX_ARGO_ROWS = 20000
+N_DEPTHS = len(DEPTHS_M)
 
 
-def _depth_metric(fn, pred, true, mask, basin_mask2d, season_mask1d):
-    """[15] list applying `fn(pred[:,d],true[:,d],combined_mask)` per depth."""
-    out = []
-    for d in range(pred.shape[1]):
-        m = mask[:, d] & basin_mask2d[None] & season_mask1d[:, None, None]
-        out.append(fn(pred[:, d], true[:, d], m))
-    return out
+def _tree(models, factory):
+    """model -> basin -> season -> factory(), the shape every per-day accumulator is stored in."""
+    return {m: {b: {s: factory() for s in SEASONS} for b in BASINS} for m in models}
 
 
 def evaluate(data_dir: str, art_dir: str, models: list[str], device: str = "cpu") -> dict:
@@ -35,116 +38,133 @@ def evaluate(data_dir: str, art_dir: str, models: list[str], device: str = "cpu"
     store = Store.open(data_dir / "poseidon.zarr")
 
     test_days = np.where(store.split == SPLIT_TEST)[0]
-    lat2d = np.broadcast_to(store.lat[:, None], (store.H, store.W))
     lon2d = np.broadcast_to(store.lon[None, :], (store.H, store.W))
-    as_mask2d = M.basin_mask(lon2d, "arabian_sea")
-    bob_mask2d = M.basin_mask(lon2d, "bay_of_bengal")
+    basin2d = {
+        "overall": np.ones((store.H, store.W), dtype=bool),
+        "arabian_sea": M.basin_mask(lon2d, "arabian_sea"),
+        "bay_of_bengal": M.basin_mask(lon2d, "bay_of_bengal"),
+    }
 
     gbm = load_gbm(art_dir) if "gbm" in models else None
     lite = load_lite(art_dir, device) if "lite" in models else None
     window = int(lite["session"].get_inputs()[0].shape[1]) if lite is not None else 0
 
-    true_stack, clim_stack, mask_stack, season_labels = [], [], [], []
-    pred_stack = {m: [] for m in models}
-    sigma_stack = []
-    day_cache: dict[int, dict] = {}
+    # "climatology" is always tracked, since skill_score needs it as a baseline even when unrequested
+    compute_models = list(dict.fromkeys([*models, "climatology"]))
+
+    depth_acc = _tree(compute_models, lambda: M.init_sum_acc(N_DEPTHS))
+    therm_acc = _tree(compute_models, M.init_sqerr_acc)
+    vgrad_acc = _tree(compute_models, M.init_sqerr_acc)
+    d20_acc = _tree(compute_models, M.init_sqerr_acc)
+    d26_acc = _tree(compute_models, M.init_sqerr_acc)
+    mld_acc = _tree(compute_models, M.init_sqerr_acc)
+    power_acc = {m: {s: {"sum": 0.0, "n": 0} for s in SEASONS} for m in compute_models}
+    calib_acc = M.init_calibration_acc()
+
+    argo_index = _argo_day_index(store, data_dir)
+    argo_series = {name: {"pred": [], "obs": []} for name in [*models, "glorys"]}
 
     for t in test_days:
         y_true = store.y_raw_day(int(t))
         _, mask = store.day_target(int(t))
+        mask = mask.astype(bool)
         clim = predict_climatology(store, int(t))
-        true_stack.append(y_true)
-        clim_stack.append(clim)
-        mask_stack.append(mask)
         month = pd.Timestamp(store.time[t]).month
-        season_labels.append(M.season_of(month))
+        season_names = ("all", M.season_of(month))
 
-        preds_here = {}
-        if "climatology" in models:
-            preds_here["climatology"] = clim
-            pred_stack["climatology"].append(clim)
-        if "gbm" in models:
-            p, _ = predict_gbm(store, gbm, int(t))
-            preds_here["gbm"] = p
-            pred_stack["gbm"].append(p)
-        if "lite" in models:
-            p, sig, _, _ = predict_lite(store, lite, int(t), window)
-            preds_here["lite"] = p
-            pred_stack["lite"].append(p)
-            sigma_stack.append(sig)
-        day_cache[int(t)] = preds_here
+        preds, sigmas = {}, {}
+        for model in compute_models:
+            if model == "climatology":
+                preds[model] = clim
+            elif model == "gbm":
+                preds[model], _ = predict_gbm(store, gbm, int(t))
+            elif model == "lite":
+                preds[model], sigmas[model], _, _ = predict_lite(store, lite, int(t), window)
 
-    true_a = np.stack(true_stack)
-    clim_a = np.stack(clim_stack)
-    mask_a = np.stack(mask_stack).astype(bool)
-    season_a = np.asarray(season_labels)
+        for i, j, obs in argo_index.get(int(t), []):
+            valid = np.isfinite(obs)
+            argo_series["glorys"]["pred"].append(y_true[:, i, j][valid])
+            argo_series["glorys"]["obs"].append(obs[valid])
+            for model in models:
+                argo_series[model]["pred"].append(preds[model][:, i, j][valid])
+                argo_series[model]["obs"].append(obs[valid])
+
+        if "lite" in preds:
+            M.accumulate_calibration(calib_acc, preds["lite"], sigmas["lite"], y_true, mask)
+
+        true_d20, true_d26, true_mld = d20(DEPTHS_M, y_true), d26(DEPTHS_M, y_true), mld(DEPTHS_M, y_true)
+
+        for model in compute_models:
+            pred = preds[model]
+            pred_d20, pred_d26, pred_mld = d20(DEPTHS_M, pred), d26(DEPTHS_M, pred), mld(DEPTHS_M, pred)
+            surf_mask_base = mask[0] & np.isfinite(pred_d20) & np.isfinite(true_d20)
+            d26_mask_base = mask[0] & np.isfinite(pred_d26) & np.isfinite(true_d26)
+            mld_mask_base = mask[0] & np.isfinite(pred_mld) & np.isfinite(true_mld)
+
+            ratio_valid = mask[DEPTH_100M_IDX].any()
+            ratio = M.spatial_power_ratio(pred[DEPTH_100M_IDX], y_true[DEPTH_100M_IDX],
+                                           SPATIAL_POWER_GRID_STEP_DEG, SPATIAL_POWER_GRID_STEP_DEG) if ratio_valid else float("nan")
+
+            for basin, b2d in basin2d.items():
+                mask3 = mask & b2d[None]
+                for season_name in season_names:
+                    M.accumulate_sums(depth_acc[model][basin][season_name], pred, y_true, clim, mask3, axis=(1, 2))
+                    M.accumulate_sqerr(therm_acc[model][basin][season_name], pred[THERM_BAND], y_true[THERM_BAND], mask3[THERM_BAND])
+
+                    d_pred, d_true = np.diff(pred, axis=0), np.diff(y_true, axis=0)
+                    pair_mask = mask3[:-1] & mask3[1:]
+                    M.accumulate_sqerr(vgrad_acc[model][basin][season_name], d_pred, d_true, pair_mask)
+
+                    M.accumulate_sqerr(d20_acc[model][basin][season_name], pred_d20, true_d20, surf_mask_base & b2d)
+                    M.accumulate_sqerr(d26_acc[model][basin][season_name], pred_d26, true_d26, d26_mask_base & b2d)
+                    M.accumulate_sqerr(mld_acc[model][basin][season_name], pred_mld, true_mld, mld_mask_base & b2d)
+
+            # whole-grid metric, tracked once per day regardless of basin
+            if ratio_valid and np.isfinite(ratio):
+                for season_name in season_names:
+                    p = power_acc[model][season_name]
+                    p["sum"] += ratio
+                    p["n"] += 1
 
     by_depth: dict = {}
     tables: dict = {}
     for model in models:
-        pred_a = np.stack(pred_stack[model])
         by_depth[model] = {"rmse": {}, "mae": {}, "bias": {}, "r": {}, "anomaly_correlation": {}, "skill_score": {}}
         tables[model] = {"thermocline_rmse": {}, "d20_rmse": {}, "d26_rmse": {}, "mld_rmse": {}, "vgrad_rmse": {}, "spatial_power_ratio_100m": {}}
-
-        clim_pred_a = np.stack(pred_stack["climatology"]) if "climatology" in models else clim_a
-
         for basin in BASINS:
-            b2d = np.ones_like(as_mask2d) if basin == "overall" else (as_mask2d if basin == "arabian_sea" else bob_mask2d)
             for season in SEASONS:
-                s1d = np.ones(len(test_days), dtype=bool) if season == "all" else season_a == season
-
-                by_depth[model]["rmse"].setdefault(basin, {})[season] = _depth_metric(M.rmse, pred_a, true_a, mask_a, b2d, s1d)
-                by_depth[model]["mae"].setdefault(basin, {})[season] = _depth_metric(M.mae, pred_a, true_a, mask_a, b2d, s1d)
-                by_depth[model]["bias"].setdefault(basin, {})[season] = _depth_metric(M.bias, pred_a, true_a, mask_a, b2d, s1d)
-                by_depth[model]["r"].setdefault(basin, {})[season] = _depth_metric(M.pearson_r, pred_a, true_a, mask_a, b2d, s1d)
-                by_depth[model]["anomaly_correlation"].setdefault(basin, {})[season] = [
-                    M.anomaly_correlation(pred_a[:, d], true_a[:, d], clim_a[:, d], mask_a[:, d] & b2d[None] & s1d[:, None, None])
-                    for d in range(len(DEPTHS_M))
+                acc = depth_acc[model][basin][season]
+                by_depth[model]["rmse"].setdefault(basin, {})[season] = [float(v) for v in M.rmse_from_sums(acc)]
+                by_depth[model]["mae"].setdefault(basin, {})[season] = [float(v) for v in M.mae_from_sums(acc)]
+                by_depth[model]["bias"].setdefault(basin, {})[season] = [float(v) for v in M.bias_from_sums(acc)]
+                by_depth[model]["r"].setdefault(basin, {})[season] = [float(v) for v in M.r_from_sums(acc)]
+                by_depth[model]["anomaly_correlation"].setdefault(basin, {})[season] = [float(v) for v in M.anomaly_correlation_from_sums(acc)]
+                by_depth[model]["skill_score"].setdefault(basin, {})[season] = [
+                    float(v) for v in M.skill_score_from_sums(acc, depth_acc["climatology"][basin][season])
                 ]
-                skills = []
-                for d in range(len(DEPTHS_M)):
-                    dm = mask_a[:, d] & b2d[None] & s1d[:, None, None]
-                    mse_model = M.rmse(pred_a[:, d], true_a[:, d], dm) ** 2
-                    mse_clim = M.rmse(clim_pred_a[:, d], true_a[:, d], dm) ** 2
-                    skills.append(M.skill_score(mse_model, mse_clim))
-                by_depth[model]["skill_score"].setdefault(basin, {})[season] = skills
 
-                therm_band = (DEPTHS_M >= THERMOCLINE_MIN_M) & (DEPTHS_M <= THERMOCLINE_MAX_M)
-                tables[model]["thermocline_rmse"].setdefault(basin, {})[season] = M.rmse(pred_a[:, therm_band], true_a[:, therm_band], mask_a[:, therm_band] & b2d[None, None] & s1d[:, None, None, None])
-                tables[model]["vgrad_rmse"].setdefault(basin, {})[season] = M.vgrad_rmse(
-                    pred_a, true_a, mask_a & b2d[None, None] & s1d[:, None, None, None], depth_axis=1
-                )
+                tables[model]["thermocline_rmse"].setdefault(basin, {})[season] = M.rmse_from_sqerr(therm_acc[model][basin][season])
+                tables[model]["vgrad_rmse"].setdefault(basin, {})[season] = M.rmse_from_sqerr(vgrad_acc[model][basin][season])
+                tables[model]["d20_rmse"].setdefault(basin, {})[season] = M.rmse_from_sqerr(d20_acc[model][basin][season])
+                tables[model]["d26_rmse"].setdefault(basin, {})[season] = M.rmse_from_sqerr(d26_acc[model][basin][season])
+                tables[model]["mld_rmse"].setdefault(basin, {})[season] = M.rmse_from_sqerr(mld_acc[model][basin][season])
 
-                pred_d20 = np.stack([d20(DEPTHS_M, pred_a[i]) for i in range(pred_a.shape[0])])
-                true_d20 = np.stack([d20(DEPTHS_M, true_a[i]) for i in range(true_a.shape[0])])
-                pred_d26 = np.stack([d26(DEPTHS_M, pred_a[i]) for i in range(pred_a.shape[0])])
-                true_d26 = np.stack([d26(DEPTHS_M, true_a[i]) for i in range(true_a.shape[0])])
-                pred_mld = np.stack([mld(DEPTHS_M, pred_a[i]) for i in range(pred_a.shape[0])])
-                true_mld = np.stack([mld(DEPTHS_M, true_a[i]) for i in range(true_a.shape[0])])
-                surf_mask = mask_a[:, 0] & b2d[None] & s1d[:, None, None]
-                tables[model]["d20_rmse"].setdefault(basin, {})[season] = M.rmse(pred_d20, true_d20, surf_mask & np.isfinite(true_d20) & np.isfinite(pred_d20))
-                tables[model]["d26_rmse"].setdefault(basin, {})[season] = M.rmse(pred_d26, true_d26, surf_mask & np.isfinite(true_d26) & np.isfinite(pred_d26))
-                tables[model]["mld_rmse"].setdefault(basin, {})[season] = M.rmse(pred_mld, true_mld, surf_mask & np.isfinite(true_mld) & np.isfinite(pred_mld))
-
-                ratios = [
-                    M.spatial_power_ratio(pred_a[i, DEPTH_100M_IDX], true_a[i, DEPTH_100M_IDX], 0.25, 0.25)
-                    for i in range(pred_a.shape[0])
-                    if s1d[i] and mask_a[i, DEPTH_100M_IDX].any()
-                ]
-                tables[model]["spatial_power_ratio_100m"].setdefault(basin, {})[season] = float(np.nanmean(ratios)) if ratios else float("nan")
+        # spatial_power_ratio_100m has no basin breakdown: it's a mean of per-day whole-grid ratios
+        for season in SEASONS:
+            p = power_acc[model][season]
+            tables[model]["spatial_power_ratio_100m"][season] = (p["sum"] / p["n"]) if p["n"] else float("nan")
 
     calibration = {}
     if "lite" in models:
-        sigma_a = np.stack(sigma_stack)
-        pred_a = np.stack(pred_stack["lite"])
+        n = calib_acc["n"]
         calibration = {
-            "nll": M.gaussian_nll(pred_a, sigma_a, true_a, mask_a),
-            "crps": M.gaussian_crps(pred_a, sigma_a, true_a, mask_a),
-            "coverage": {str(lvl): M.coverage(pred_a, sigma_a, true_a, mask_a, lvl) for lvl in (0.5, 0.8, 0.9, 0.95)},
-            "mean_interval_width_90": M.mean_interval_width(sigma_a, mask_a, 0.9),
+            "nll": calib_acc["nll"] / n if n else float("nan"),
+            "crps": calib_acc["crps"] / n if n else float("nan"),
+            "coverage": {str(lvl): (calib_acc["coverage"][lvl] / n if n else float("nan")) for lvl in (0.5, 0.8, 0.9, 0.95)},
+            "mean_interval_width_90": calib_acc["width90"] / n if n else float("nan"),
         }
 
-    argo_scatter = _evaluate_argo(store, data_dir, day_cache, models)
+    argo_scatter = _finalize_argo(argo_series)
 
     learning_curve = []
     curve_path = art_dir / "lite" / "learning_curve.json"
@@ -163,7 +183,8 @@ def evaluate(data_dir: str, art_dir: str, models: list[str], device: str = "cpu"
     return report
 
 
-def _evaluate_argo(store: Store, data_dir: Path, day_cache: dict, models: list[str]) -> dict:
+def _argo_day_index(store: Store, data_dir: Path) -> dict[int, list[tuple[int, int, np.ndarray]]]:
+    """test-day index -> [(cell_i, cell_j, obs_by_depth), ...], read once before the day loop."""
     parquet_path = data_dir / "argo_matchups.parquet"
     if not parquet_path.exists():
         return {}
@@ -173,24 +194,20 @@ def _evaluate_argo(store: Store, data_dir: Path, day_cache: dict, models: list[s
     time_to_idx = {np.datetime64(t, "D"): i for i, t in enumerate(store.time)}
     depth_cols = [f"t_{int(d)}" for d in DEPTHS_M]
 
-    series = {name: {"pred": [], "obs": []} for name in [*models, "glorys"]}
+    index: dict[int, list[tuple[int, int, np.ndarray]]] = {}
     for _, row in df.iterrows():
         t = time_to_idx.get(np.datetime64(pd.Timestamp(row["date"]).date(), "D"))
-        if t is None or t not in day_cache:
+        if t is None:
             continue
-        i, j = int(row["cell_i"]), int(row["cell_j"])
         obs = np.asarray([row[c] for c in depth_cols], dtype=np.float32)
-        valid = np.isfinite(obs)
-        if not valid.any():
+        if not np.isfinite(obs).any():
             continue
-        glorys = store.y_raw_day(t)[:, i, j]
-        series["glorys"]["pred"].append(glorys[valid])
-        series["glorys"]["obs"].append(obs[valid])
-        for model in models:
-            pred = day_cache[t][model][:, i, j]
-            series[model]["pred"].append(pred[valid])
-            series[model]["obs"].append(obs[valid])
+        index.setdefault(t, []).append((int(row["cell_i"]), int(row["cell_j"]), obs))
+    return index
 
+
+def _finalize_argo(series: dict) -> dict:
+    """Concatenate the per-day matchup arrays gathered during the day loop into RMSE/bias/r."""
     out = {}
     for name, d in series.items():
         if not d["pred"]:

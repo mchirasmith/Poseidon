@@ -230,7 +230,7 @@ PRODUCTS = ["sst", "sss", "sla", "glorys", "cur", "wnd"]
 
 
 def test_real_assembly_produces_valid_schema(data_dir: Path):
-    zarr_path = run.assemble_real(data_dir, PRODUCTS, YEAR, YEAR, GRID)
+    zarr_path = run.assemble_real(data_dir, PRODUCTS, YEAR, YEAR, GRID, download_workers=1)
     g = zarr.open_consolidated(str(zarr_path))
 
     H, W = len(GRID.lat), len(GRID.lon)
@@ -284,7 +284,7 @@ def test_real_assembly_produces_valid_schema(data_dir: Path):
 
 
 def test_real_assembly_resumes_without_reassembling(data_dir: Path, monkeypatch):
-    run.assemble_real(data_dir, PRODUCTS, YEAR, YEAR, GRID)
+    run.assemble_real(data_dir, PRODUCTS, YEAR, YEAR, GRID, download_workers=1)
 
     def _boom(*a, **k):
         raise AssertionError("assembly should have been skipped on resume")
@@ -296,7 +296,7 @@ def test_real_assembly_resumes_without_reassembling(data_dir: Path, monkeypatch)
     run_module._build_argo_matchups = _boom
     monkeypatch.setattr(interim, "regrid_month", _boom)
     try:
-        run.assemble_real(data_dir, PRODUCTS, YEAR, YEAR, GRID)
+        run.assemble_real(data_dir, PRODUCTS, YEAR, YEAR, GRID, download_workers=1)
     finally:
         run_module._assemble = orig_assemble
         run_module._build_argo_matchups = orig_argo
@@ -304,7 +304,7 @@ def test_real_assembly_resumes_without_reassembling(data_dir: Path, monkeypatch)
 
 def test_pass1_streaming_matches_in_memory_fit(data_dir: Path):
     """run._fit_stats_streaming's chunked climatology/stats match a single-shot in-memory fit."""
-    zarr_path = run.assemble_real(data_dir, ["sst"], YEAR, YEAR, GRID)
+    zarr_path = run.assemble_real(data_dir, ["sst"], YEAR, YEAR, GRID, download_workers=1)
     g = zarr.open_consolidated(str(zarr_path))
 
     calendar = align.master_calendar(f"{YEAR}-01-01", f"{YEAR}-12-31")
@@ -327,3 +327,28 @@ def test_pass1_streaming_matches_in_memory_fit(data_dir: Path):
     norm = json.loads(g.attrs["norm"])
     assert abs(norm["sst"]["mean"] - mean_ref) < 1e-2
     assert abs(norm["sst"]["std"] - std_ref) < 1e-2
+
+
+def _install_fakes() -> None:
+    """Runs inside each spawned download worker, where the parent's monkeypatches do not exist."""
+    download.download_copernicus_month = _fake_download_month
+    earthaccess.login = _fake_login
+    earthaccess.search_data = _fake_search_data
+    earthaccess.download = _fake_earthaccess_download
+
+
+def test_parallel_download_matches_sequential(tmp_path: Path, monkeypatch):
+    monkeypatch.setattr(download, "download_copernicus_month", _fake_download_month)
+    monkeypatch.setattr(earthaccess, "login", _fake_login)
+    monkeypatch.setattr(earthaccess, "search_data", _fake_search_data)
+    monkeypatch.setattr(earthaccess, "download", _fake_earthaccess_download)
+    dirs = {}
+    for mode, workers in (("seq", 1), ("par", 3)):
+        raw, interim = tmp_path / mode / "raw", tmp_path / mode / "interim"
+        raw.mkdir(parents=True), interim.mkdir(parents=True)
+        run._download_and_regrid(["sst", "sss", "cur"], YEAR, YEAR, raw, interim, GRID, workers, initializer=_install_fakes)
+        dirs[mode] = interim
+    for name in ("sst", "sss", "cur"):
+        seq_files = sorted(f.name for f in (dirs["seq"] / name).glob("*.nc"))
+        assert seq_files == sorted(f.name for f in (dirs["par"] / name).glob("*.nc"))
+        assert download.is_done(dirs["par"], name, seq_files[0].removesuffix(".nc"))

@@ -1,9 +1,22 @@
+# datasets and caches never enter git
 data/
-artifacts/
+data-*/
+artifacts-*/
 cache/
+.env
+# artifacts: only the exported weights and their cards are tracked
+artifacts/*
+!artifacts/lite/
+artifacts/lite/*
+!artifacts/lite/poseidon-lite.onnx
+!artifacts/lite/model_card.json
+!artifacts/gbm/
+artifacts/gbm/*
+!artifacts/gbm/depth_*.txt
+!artifacts/gbm/feature_spec.json
+!artifacts/gbm/model_card.json
 .venv/
 __pycache__/
 *.pt
-*.onnx
 *.pyc
 .pytest_cache/

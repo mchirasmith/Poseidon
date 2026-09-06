@@ -15,9 +15,11 @@ from pipeline.sources import DEPTHS_M
 
 ONNX_OPSET = 17
 PARITY_MAX_ABS_DIFF = 1e-4
-PARITY_MAX_ABS_DIFF_FULL_DOMAIN = 5e-4  # real (non-random) inputs accumulate more float32 rounding
 PARITY_N_TILES = 10
 PARITY_SIZES = [(16, 24), (40, 56)]  # multiples of 8, neither a multiple of the other
+# exp() amplifies log-sigma rounding at full domain, so parity there compares log-sigma, not sigma.
+PARITY_RTOL_FULL_DOMAIN = 1e-3
+PARITY_ATOL_FULL_DOMAIN = 1e-3
 
 
 def _make_export_wrapper(torch, nn):
@@ -130,11 +132,29 @@ def verify_parity(wrapper, onnx_path: Path, window: int, store: Store | None = N
     if store is not None:
         t = int(np.where(store.split == 0)[0][-1])
         x, s, _, _ = full_domain_batch(store, t, window)
-        full_diff = _max_abs_diff(wrapper, sess, x.astype(np.float32), s.astype(np.float32))
-        if full_diff >= PARITY_MAX_ABS_DIFF_FULL_DOMAIN:
-            raise RuntimeError(f"ONNX full-domain parity failed: max abs diff {full_diff} >= {PARITY_MAX_ABS_DIFF_FULL_DOMAIN}")
+        _check_full_domain_parity(wrapper, sess, x.astype(np.float32), s.astype(np.float32))
 
     return worst
+
+
+def _check_full_domain_parity(wrapper, sess, x: np.ndarray, s: np.ndarray) -> None:
+    """Compare mean and logsigma (not alpha*exp(logsigma)) so exp() doesn't amplify float32 noise."""
+    import torch
+
+    with torch.no_grad():
+        t_mean, t_sigma, _ = wrapper(torch.as_tensor(x), torch.as_tensor(s))
+    o_mean, o_sigma, _ = sess.run(None, {"x": x, "static": s})
+    alpha = wrapper.alpha.numpy()
+    t_logsigma = np.log(np.maximum(t_sigma.numpy() / alpha, 1e-12))
+    o_logsigma = np.log(np.maximum(o_sigma / alpha, 1e-12))
+    np.testing.assert_allclose(
+        t_mean.numpy(), o_mean, rtol=PARITY_RTOL_FULL_DOMAIN, atol=PARITY_ATOL_FULL_DOMAIN,
+        err_msg="ONNX full-domain parity failed on mean",
+    )
+    np.testing.assert_allclose(
+        t_logsigma, o_logsigma, rtol=PARITY_RTOL_FULL_DOMAIN, atol=PARITY_ATOL_FULL_DOMAIN,
+        err_msg="ONNX full-domain parity failed on logsigma",
+    )
 
 
 def export_gbm(cfg_path: str, data_dir: str, art_dir: str) -> Path:

@@ -11,9 +11,11 @@ emb_dim: 32
 width: [32, 64, 96]
 decoder_width: [64, 48]
 attn_heads: 4
+head_chunk: 16384  # 3.4 GB/step at batch 32, fits an 8 GB GPU with margin; 0 disables chunking (~5.5 GB/step)
 depth_tokens: 8
 loss: {nll: 1.0, vgrad: 0.3, thermocline_w: 1.5}
-device: mps
+device: auto  # cuda if available, else mps, else cpu
+mps_memory_fraction: 0.5
 in_ram: true
 eval_every: 1000
 ema_decay: 0.999

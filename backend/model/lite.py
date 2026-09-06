@@ -7,6 +7,7 @@ from __future__ import annotations
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.utils.checkpoint import checkpoint
 
 from pipeline.sources import DEPTHS_M
 
@@ -43,24 +44,36 @@ class ResBlock(nn.Module):
 class DepthAttnHead(nn.Module):
     """15 learned depth queries cross-attend over `depth_tokens` per-pixel keys/values; outputs mean, log-sigma."""
 
-    def __init__(self, in_dim: int, d: int, heads: int, depth_tokens: int, n_depth: int = N_DEPTH):
+    def __init__(self, in_dim: int, d: int, heads: int, depth_tokens: int, n_depth: int = N_DEPTH, chunk: int = 0):
         super().__init__()
-        self.d = d
-        self.depth_tokens = depth_tokens
-        self.kv_proj = nn.Conv2d(in_dim, depth_tokens * d, 1)
-        self.depth_query = nn.Parameter(torch.randn(n_depth, d) * 0.02)
-        self.attn = nn.MultiheadAttention(d, heads, batch_first=True)
-        self.mean_head = nn.Linear(2 * d, 1)
-        self.logsigma_head = nn.Linear(2 * d, 1)
+        self.d, self.heads, self.depth_tokens, self.chunk = d, heads, depth_tokens, chunk
+        # The 15 queries are identical for every pixel, so they are stored already projected per head.
+        self.kv_proj = nn.Conv2d(in_dim, 2 * depth_tokens * d, 1)
+        self.query = nn.Parameter(torch.randn(heads, n_depth, d // heads) * 0.02)
+        self.out_proj = nn.Linear(d, d)
+        self.mean_head = nn.Linear(d, 1)
+        self.logsigma_head = nn.Linear(d, 1)
+        self.mean_bias = nn.Parameter(torch.zeros(n_depth))
+        self.logsigma_bias = nn.Parameter(torch.zeros(n_depth))
+
+    def _attend(self, kv: torch.Tensor) -> torch.Tensor:
+        """(n, 2, heads, tokens, dh) keys/values -> (n, n_depth, 2) mean and log-sigma before the depth biases."""
+        q = self.query.unsqueeze(0).expand(kv.shape[0], -1, -1, -1)
+        ctx = F.scaled_dot_product_attention(q, kv[:, 0], kv[:, 1])
+        ctx = self.out_proj(ctx.transpose(1, 2).reshape(kv.shape[0], -1, self.d))
+        return torch.cat([self.mean_head(ctx), self.logsigma_head(ctx)], dim=-1)
 
     def forward(self, latent: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         B, C, H, W = latent.shape
-        kv = self.kv_proj(latent).permute(0, 2, 3, 1).reshape(B * H * W, self.depth_tokens, self.d)
-        q = self.depth_query.unsqueeze(0).expand(B * H * W, -1, -1)
-        ctx, _ = self.attn(q, kv, kv)
-        combo = torch.cat([ctx, q], dim=-1)
-        mean = self.mean_head(combo).squeeze(-1).reshape(B, H, W, -1).permute(0, 3, 1, 2)
-        logsigma = self.logsigma_head(combo).squeeze(-1).reshape(B, H, W, -1).permute(0, 3, 1, 2)
+        N, dh = B * H * W, self.d // self.heads
+        kv = self.kv_proj(latent).permute(0, 2, 3, 1).reshape(N, 2, self.heads, self.depth_tokens, dh)
+        if self.training and 0 < self.chunk < N:
+            # Recomputing each pixel chunk in backward keeps only one chunk's attention activations alive.
+            out = torch.cat([checkpoint(self._attend, kv[i : i + self.chunk], use_reentrant=False) for i in range(0, N, self.chunk)])
+        else:
+            out = self._attend(kv)
+        mean = (out[..., 0] + self.mean_bias).reshape(B, H, W, -1).permute(0, 3, 1, 2)
+        logsigma = (out[..., 1] + self.logsigma_bias).reshape(B, H, W, -1).permute(0, 3, 1, 2)
         return mean, logsigma
 
 
@@ -75,6 +88,7 @@ class Lite(nn.Module):
         attn_heads,
         depth_tokens: int,
         static_channels: int = 3,
+        head_chunk: int = 0,
     ):
         super().__init__()
         c_in = window * in_channels_per_day
@@ -94,7 +108,7 @@ class Lite(nn.Module):
         self.dec_act = nn.SiLU()
 
         latent_dim = dw1 + static_channels
-        self.head = DepthAttnHead(latent_dim, dw1, attn_heads, depth_tokens)
+        self.head = DepthAttnHead(latent_dim, dw1, attn_heads, depth_tokens, chunk=head_chunk)
 
     def forward(self, x: torch.Tensor, static: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         B, k, c, H, W = x.shape

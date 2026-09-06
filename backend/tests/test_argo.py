@@ -1,6 +1,5 @@
 """ArgoIndex.nearest tolerance behaviour on a hand-built matchup table."""
 import pandas as pd
-import pytest
 
 from app.services.argo import ArgoIndex
 from pipeline.sources import DEPTHS_M

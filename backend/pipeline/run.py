@@ -64,19 +64,38 @@ def _download_with_retry(product, year: int, month: int, raw_dir: Path) -> Path:
             time.sleep(DOWNLOAD_RETRY_WAIT_S * (attempt + 1))
 
 
-def _download_and_regrid(products: list[str], year0: int, year1: int, raw_dir: Path, interim_dir: Path, grid: Grid) -> None:
-    for name in products:
-        product = PRODUCTS[name]
-        for year in range(year0, year1 + 1):
-            for month in range(1, 13):
-                month_key = f"{year:04d}-{month:02d}"
-                if download.is_done(interim_dir, name, month_key):
-                    continue
-                raw_path = _download_with_retry(product, year, month, raw_dir)
-                interim.regrid_month(name, raw_path, interim_dir, month_key, grid)
-                download.mark_done(interim_dir, name, month_key)
-                if name == "glorys":
-                    Path(raw_path).unlink(missing_ok=True)
+def _download_and_regrid_product(name: str, year0: int, year1: int, raw_dir: Path, interim_dir: Path, grid: Grid) -> str:
+    """One product's full download+regrid loop; the unit of work for a download worker."""
+    product = PRODUCTS[name]
+    for year in range(year0, year1 + 1):
+        for month in range(1, 13):
+            month_key = f"{year:04d}-{month:02d}"
+            if download.is_done(interim_dir, name, month_key):
+                continue
+            raw_path = _download_with_retry(product, year, month, raw_dir)
+            interim.regrid_month(name, raw_path, interim_dir, month_key, grid)
+            download.mark_done(interim_dir, name, month_key)
+            if name == "glorys":
+                Path(raw_path).unlink(missing_ok=True)
+            print(f"{name} {month_key}: regridded")
+    return name
+
+
+def _download_and_regrid(
+    products: list[str], year0: int, year1: int, raw_dir: Path, interim_dir: Path, grid: Grid, workers: int = 1, initializer=None
+) -> None:
+    """Sequential when workers <= 1 (or a single product); otherwise one spawned process per product."""
+    if workers <= 1 or len(products) <= 1:
+        for name in products:
+            _download_and_regrid_product(name, year0, year1, raw_dir, interim_dir, grid)
+        return
+
+    from concurrent.futures import ProcessPoolExecutor, as_completed
+
+    with ProcessPoolExecutor(max_workers=min(workers, len(products)), initializer=initializer) as pool:
+        futures = [pool.submit(_download_and_regrid_product, name, year0, year1, raw_dir, interim_dir, grid) for name in products]
+        for future in as_completed(futures):
+            future.result()
 
 
 def _glorys_std_depths(sliced) -> np.ndarray:
@@ -129,7 +148,7 @@ def _fit_stats_streaming(extract, train_cal, train_doy: np.ndarray, H: int, W: i
         t1 = min(t0 + ZARR_TIME_CHUNK, n)
         vals = extract(train_cal[t0:t1])
         anom = vals - clim[(train_doy[t0:t1] - 1) % 366]
-        normalise.accumulate_stats(stats, anom, np.isfinite(vals))
+        normalise.accumulate_stats(stats, anom, np.isfinite(vals) & np.isfinite(anom))
     mean, std = normalise.solve_stats(stats)
     return clim.astype(np.float16), mean, std
 
@@ -303,15 +322,18 @@ def _build_argo_matchups(raw_dir: Path, year0: int, year1: int, grid: Grid, out_
     df.to_parquet(out_path)
 
 
-def assemble_real(data_dir: str | Path, products: list[str], year0: int, year1: int, grid: Grid = DEFAULT_GRID) -> Path:
+def assemble_real(
+    data_dir: str | Path, products: list[str], year0: int, year1: int, grid: Grid = DEFAULT_GRID, download_workers: int | None = None
+) -> Path:
     """Download, regrid, align, mask, target, split, climatology, normalise, write zarr, then Argo matchups."""
     data_dir = Path(data_dir)
     raw_dir, interim_dir = data_dir / "raw", data_dir / "interim"
     raw_dir.mkdir(parents=True, exist_ok=True)
     interim_dir.mkdir(parents=True, exist_ok=True)
 
+    workers = len(products) if download_workers is None else download_workers
     _check_credentials(products)
-    _download_and_regrid(products, year0, year1, raw_dir, interim_dir, grid)
+    _download_and_regrid(products, year0, year1, raw_dir, interim_dir, grid, workers)
 
     zarr_path = data_dir / "poseidon.zarr"
     data_hash = hashlib.sha256(f"{sorted(products)}:{year0}:{year1}:{len(grid.lat)}x{len(grid.lon)}".encode()).hexdigest()
@@ -331,7 +353,7 @@ def assemble_real(data_dir: str | Path, products: list[str], year0: int, year1: 
 def run_real(args: argparse.Namespace) -> None:
     year0, year1 = _parse_years(args.years)
     products = args.products or list(PRODUCTS)
-    assemble_real(args.data_dir, products, year0, year1)
+    assemble_real(args.data_dir, products, year0, year1, download_workers=args.workers)
     print("real pipeline complete.")
 
 
@@ -346,6 +368,7 @@ def main() -> None:
     parser.add_argument("--ny", type=int, default=100)
     parser.add_argument("--nx", type=int, default=240)
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--workers", type=int, default=None, help="parallel download workers; default = number of products, 1 = sequential")
     args = parser.parse_args()
 
     if args.synthetic:

@@ -8,10 +8,11 @@ import yaml
 
 from model.calibrate import _load_lite
 from model.dataset import Store, full_domain_batch
-from model.export import PARITY_MAX_ABS_DIFF
+from model.export import PARITY_MAX_ABS_DIFF, _check_full_domain_parity, _make_export_wrapper
 from tests.test_model_train import full_artifacts  # noqa: F401  (shared session fixture)
 
 TINY_CFG = yaml.safe_load(open("configs/tiny.yaml"))
+FULL_DOMAIN_H, FULL_DOMAIN_W = 100, 240  # real deployment domain; padded to a multiple of 8 below
 
 
 def test_export_writes_onnx_and_card(full_artifacts):
@@ -47,6 +48,27 @@ def test_onnx_parity_on_non_multiple_of_tile(full_artifacts):
     s = rng.normal(size=(1, 3, h, w)).astype(np.float32)
     mean, sigma, emb = sess.run(None, {"x": x, "static": s})
     assert mean.shape == (1, 15, h, w)
+
+
+def test_onnx_parity_at_full_domain_scale(full_artifacts):
+    """The depth-attention MatMul batches B*H*W rows, so parity must hold at full-domain size, not just tile size."""
+
+    from model.dataset import pad_to_multiple
+
+    card = json.loads((full_artifacts / "lite" / "model_card.json").read_text())
+    alphas = card["calibration_alphas"]
+    model = _load_lite(TINY_CFG, full_artifacts, "cpu")
+    ExportWrapper = _make_export_wrapper(torch, torch.nn)
+    wrapper = ExportWrapper(model, alphas).eval()
+
+    rng = np.random.default_rng(11)
+    x = rng.normal(size=(1, TINY_CFG["window"], 12, FULL_DOMAIN_H, FULL_DOMAIN_W)).astype(np.float32)
+    s = rng.normal(size=(1, 3, FULL_DOMAIN_H, FULL_DOMAIN_W)).astype(np.float32)
+    x, _, _ = pad_to_multiple(x)
+    s, _, _ = pad_to_multiple(s)
+
+    sess = ort.InferenceSession(str(full_artifacts / "lite" / "poseidon-lite.onnx"))
+    _check_full_domain_parity(wrapper, sess, x, s)  # raises on failure
 
 
 def test_onnx_sigma_equals_alpha_scaled_pytorch_sigma(full_artifacts, synthetic_store):

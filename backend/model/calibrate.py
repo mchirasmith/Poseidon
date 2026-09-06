@@ -11,7 +11,7 @@ import yaml
 
 from model.dataset import Store, full_domain_batch
 from model.lite import Lite
-from model.train_nn import resolve_device
+from model.train_nn import apply_memory_fraction, resolve_device
 from pipeline.sources import DEPTHS_M, SPLIT_CAL
 
 NOMINAL_COVERAGE = 0.90
@@ -57,6 +57,7 @@ def calibrate(cfg_path: str, data_dir: str, art_dir: str) -> list[float]:
     art_dir = Path(art_dir)
     store = Store.open(Path(data_dir) / "poseidon.zarr")
     device = resolve_device(cfg["device"])
+    apply_memory_fraction(device, cfg)
     model = _load_lite(cfg, art_dir, device)
 
     cal_days = np.where(store.split == SPLIT_CAL)[0]
@@ -67,12 +68,14 @@ def calibrate(cfg_path: str, data_dir: str, art_dir: str) -> list[float]:
     for t in cal_days:
         x, s, h, w = full_domain_batch(store, int(t), cfg["window"])
         y, mask = store.day_target(int(t))
-        with torch.no_grad():
+        with torch.inference_mode():
             mean, logsigma, _ = model(torch.as_tensor(x, dtype=torch.float32, device=device), torch.as_tensor(s, dtype=torch.float32, device=device))
         means.append(mean[0, :, :h, :w].cpu().numpy())
         sigmas.append(torch.exp(logsigma[0, :, :h, :w].clamp(-6, 6)).cpu().numpy())
         targets.append(y)
         masks.append(mask)
+        if device == "mps":
+            torch.mps.empty_cache()
 
     alphas = []
     if means:

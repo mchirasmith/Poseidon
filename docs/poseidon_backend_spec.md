@@ -119,6 +119,7 @@ backend/
 | `POSEIDON_CORS_ORIGINS` | `*` | comma list |
 | `POSEIDON_TEST_RANGE` | `2019-01-01,2020-12-31` | date picker bounds |
 | `POSEIDON_MAX_JOBS` | `2` | concurrent runs |
+| `POSEIDON_ENV_FILE` | `backend/.env` | pipeline credentials file (`COPERNICUSMARINE_SERVICE_USERNAME/PASSWORD`, `EARTHDATA_USERNAME/PASSWORD`); see `.env.example` |
 
 ### 1.3 Startup (lifespan)
 
@@ -349,15 +350,15 @@ flowchart LR
   EMB --> U1["up 2x + skip -> 64"]
   U1 --> U2["up 2x + skip -> 48"]
   U2 --> ST["concat static 3 -> 51"]
-  ST --> DQ["15 depth queries<br/>1 cross-attn block, d=48, 4 heads"]
+  ST --> DQ["15 shared depth queries<br/>cross-attn over 8 per-pixel tokens, d=48, 4 heads"]
   DQ --> HD["per-depth head:<br/>mean, log-sigma"]
 ```
 
-- Params ~0.2 M. Embedding 32-D at 1 deg spacing, exportable.
+- Params ~0.3 M. Embedding 32-D at 1 deg spacing, exportable. The head runs per pixel; during training it is chunked over pixels with gradient checkpointing (`head_chunk`) to bound memory.
 - Loss: masked Gaussian NLL (diagonal) + 0.3 x Huber on vertical differences `T[z+1]-T[z]` vs target. Depth weights 1.5 on 50 to 200 m.
 - Optim: AdamW lr 2e-3, cosine, weight decay 1e-4, batch 32, AMP off on MPS (bf16 flaky), EMA 0.999.
-- Budget: 10,000 steps. On M4 MPS ~0.12 to 0.15 s/step with in-RAM data: 20 to 25 min. Dev eval every 1,000 steps on 2017 (200 random tiles, 10 s).
-- Memory: ~3 GB peak.
+- Budget: 10,000 steps. Measured on M4 MPS: ~1.0 s/step at batch 32 with the chunked head (0.73 s unchunked), so ~2.8 h; batch 8 gives 0.27 s/step. A CUDA GPU is expected to be 10x faster. Dev eval every 1,000 steps on 2017 (200 random tiles).
+- Memory: 3.4 GB MPS driver memory per step at batch 32 (5.5 GB unchunked); the trainer caps the process at `mps_memory_fraction` of device memory.
 - Expected result vs gbm on test: lower RMSE at 50 to 200 m, higher anomaly correlation, smoother spatial fields; roughly equal at 0 to 20 m; loss still descending at 10k steps (this is the "signal": show the curve).
 
 `configs/lite.yaml`
@@ -372,11 +373,17 @@ steps: 10000
 lr: 2e-3
 emb_dim: 32
 width: [32, 64, 96]
-depth_attn_blocks: 1
+decoder_width: [64, 48]
+attn_heads: 4
+depth_tokens: 8
+head_chunk: 16384
 loss: {nll: 1.0, vgrad: 0.3, thermocline_w: 1.5}
 device: mps
+mps_memory_fraction: 0.5
 in_ram: true
 eval_every: 1000
+eval_tiles: 200
+cal_days: 30
 ```
 
 ### 3.5 poseidon-full
@@ -590,6 +597,17 @@ make mock             # uvicorn mock:app
 make test
 make all               # scripts/run_all.py: data -> gbm -> nn -> calibrate -> export -> eval -> precompute
 make all-synthetic     # same, on the no-network synthetic generator and configs/tiny.yaml
+```
+
+### Windows (PowerShell)
+
+The `Makefile` targets are Unix-only; run the equivalent commands directly. `uv sync` installs a CUDA
+(cu124) `torch` wheel on Windows automatically via `pyproject.toml`'s platform-marked source.
+
+```powershell
+uv sync
+copy .env.example .env   # then fill in the four credential values
+uv run python scripts/run_all.py --years 2016-2020 --cfg configs/lite.yaml
 ```
 
 ## Appendix B: known limits, stated in the model card

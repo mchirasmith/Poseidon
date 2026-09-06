@@ -130,3 +130,24 @@ def test_masked_cells_do_not_affect_loss():
     loss_all, _ = lite_loss(mean, logsigma, y, mask_half, core, TINY_CFG["loss"])
     loss_perturbed, _ = lite_loss(mean, logsigma, y_perturbed, mask_half, core, TINY_CFG["loss"])
     assert float(loss_all.detach()) == float(loss_perturbed.detach())
+
+
+def test_chunked_head_matches_unchunked():
+    torch.manual_seed(0)
+    model = _build(TINY_CFG)
+    model.head.chunk = 64
+    x = torch.randn(2, TINY_CFG["window"], 12, 16, 24)
+    static = torch.randn(2, 3, 16, 24)
+    # Train mode only switches on chunking: there is no dropout or batch norm in the network.
+    model.train()
+    mean_c, logsigma_c, _ = model(x, static)
+    (mean_c.sum() + logsigma_c.sum()).backward()
+    grads_c = [p.grad.clone() for p in model.head.parameters()]
+    model.zero_grad()
+    model.head.chunk = 0
+    mean_u, logsigma_u, _ = model(x, static)
+    (mean_u.sum() + logsigma_u.sum()).backward()
+    assert torch.allclose(mean_c, mean_u, atol=1e-5)
+    assert torch.allclose(logsigma_c, logsigma_u, atol=1e-5)
+    for g_c, p in zip(grads_c, model.head.parameters()):
+        assert torch.allclose(g_c, p.grad, atol=1e-4)
