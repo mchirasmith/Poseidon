@@ -7,6 +7,7 @@ from __future__ import annotations
 import json
 import os
 import shutil
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import pandas as pd
@@ -16,6 +17,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from pipeline.interim import _std_dims
 from pipeline.sources import (
+    ARGO_DOWNLOAD_THREADS,
     ARGO_DAC_BASE_URL,
     ARGO_INDEX_URL,
     BOX_LAT_MAX,
@@ -256,15 +258,17 @@ def download_argo_profiles(index: pd.DataFrame, raw_dir: Path) -> list[Path]:
     """Fetch profile files into raw/argo/, resuming by skipping files already on disk."""
     out_dir = raw_dir / "argo"
     out_dir.mkdir(parents=True, exist_ok=True)
-    paths = []
-    for file_rel in index["file"]:
+
+    def fetch(file_rel: str) -> Path:
         dest = out_dir / Path(file_rel).name
         if not dest.exists():
             resp = requests.get(ARGO_DAC_BASE_URL + file_rel, timeout=ARGO_REQUEST_TIMEOUT_S)
             resp.raise_for_status()
             dest.write_bytes(resp.content)
-        paths.append(dest)
-    return paths
+        return dest
+
+    with ThreadPoolExecutor(max_workers=ARGO_DOWNLOAD_THREADS) as pool:
+        return list(pool.map(fetch, index["file"]))
 
 
 def main() -> None:

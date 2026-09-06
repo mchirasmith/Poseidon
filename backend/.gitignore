@@ -20,3 +20,7 @@ __pycache__/
 *.pt
 *.pyc
 .pytest_cache/
+
+# scratch runs (synthetic rehearsals, smoke tests)
+data_*/
+artifacts_*/

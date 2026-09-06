@@ -121,6 +121,11 @@ def main() -> None:
         print("[ok]   check")
 
     if wanted("data"):
+        # the curated showcase days (frontend bundle) travel with the repo; the data dir itself is ignored
+        curated_src = BACKEND_DIR / "configs" / "curated_days.json"
+        if not args.synthetic and curated_src.exists() and not (data_dir / "curated_days.json").exists():
+            data_dir.mkdir(parents=True, exist_ok=True)
+            shutil.copy(curated_src, data_dir / "curated_days.json")
         if args.synthetic:
             cmd = [
                 py, "-m", "pipeline.run", "--synthetic",

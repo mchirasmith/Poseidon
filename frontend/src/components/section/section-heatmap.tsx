@@ -157,7 +157,8 @@ export function SectionHeatmap({
             : (normY - depthNormYs[d1]) / (depthNormYs[d2] - depthNormYs[d1]);
         const val = depthValues[d1] + t * (depthValues[d2] - depthValues[d1]);
 
-        const rgbStr = getColorByMode(val, mode);
+        // land and below-seafloor cells carry NaN: paint them as dark basement
+        const rgbStr = Number.isFinite(val) ? getColorByMode(val, mode) : "rgb(14, 18, 28)";
         const match = rgbStr.match(/\d+/g);
         const r = match ? Number(match[0]) : 20;
         const g = match ? Number(match[1]) : 30;

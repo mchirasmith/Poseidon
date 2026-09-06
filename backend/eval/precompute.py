@@ -12,7 +12,7 @@ from pathlib import Path
 import numpy as np
 
 from app.config import Settings
-from app.deps import LiveBackend
+from app.deps import LandCellError, LiveBackend
 from app.services import cache, tiles
 from eval.evaluate import write_report
 from pipeline.sources import DEPTHS_M, SPLIT_TEST
@@ -24,6 +24,7 @@ SECTION_PRESETS = {
 }
 N_FALLBACK_DAYS = 5
 N_SECTION_POINTS = 60
+FALLBACK_FIELDS = ("mean", "sigma", "glorys")  # the (D, H, W) arrays the frontend cuts sections from offline
 
 
 def _test_dates(store, days_arg: str) -> list[str]:
@@ -110,6 +111,7 @@ def _rewrite_urls(obj, prefix: str = "/fallback"):
 
 
 def _copy_tiles_for(backend: LiveBackend, date: str, model: str, out_root: Path) -> None:
+    """PNG tiles only: the cached arrays and NetCDFs would multiply the static bundle's size."""
     src = backend.cache_root / date
     for sub in (model, "in"):
         src_dir = src / sub
@@ -117,7 +119,39 @@ def _copy_tiles_for(backend: LiveBackend, date: str, model: str, out_root: Path)
             dst_dir = out_root / "tiles" / date / sub
             if dst_dir.exists():
                 shutil.rmtree(dst_dir)
-            shutil.copytree(src_dir, dst_dir)
+            for png in src_dir.rglob("*.png"):
+                dst = dst_dir / png.relative_to(src_dir)
+                dst.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy(png, dst)
+
+
+def _write_day_fields(fields, day_dir: Path, store) -> None:
+    """fields.bin: little-endian float16 (len(FALLBACK_FIELDS), D, H, W); fields.json describes the axes."""
+    D = len(DEPTHS_M)
+    arrays = []
+    for key in FALLBACK_FIELDS:
+        arr = np.asarray(fields[key], dtype=np.float32)
+        arrays.append(arr if arr.size else np.full((D, store.H, store.W), np.nan, dtype=np.float32))
+    stack = np.stack(arrays)
+    (day_dir / "fields.bin").write_bytes(stack.astype("<f2").tobytes())
+    (day_dir / "fields.json").write_text(json.dumps({
+        "order": list(FALLBACK_FIELDS),
+        "dtype": "float16",
+        "shape": list(stack.shape),
+        "lat": [float(v) for v in store.lat],
+        "lon": [float(v) for v in store.lon],
+        "depths_m": [float(d) for d in DEPTHS_M],
+    }))
+
+
+def _write_day_argo(backend: LiveBackend, date: str, day_dir: Path) -> None:
+    """Argo profiles within the matchup day window, so the frontend can mark floats on any transect."""
+    window = backend.argo_index.day_window(date, backend.settings.argo_max_days)
+    rows = []
+    if window is not None:
+        for r in window[["wmo", "lat", "lon", "_ord", "_target_ord"]].to_dict("records"):
+            rows.append({"wmo": str(r["wmo"]), "lat": float(r["lat"]), "lon": float(r["lon"]), "day_offset": int(r["_ord"] - r["_target_ord"])})
+    (day_dir / "argo.json").write_text(json.dumps(rows))
 
 
 def _write_fallback(backend: LiveBackend, model: str, test_dates: list[str], fallback_dir: Path) -> None:
@@ -155,6 +189,17 @@ def _write_fallback(backend: LiveBackend, model: str, test_dates: list[str], fal
         a, b = _clamp_preset(preset, backend.engine.store)
         section = backend.section(date, a, b, N_SECTION_POINTS, model).model_dump()
         (day_dir / "section.json").write_text(json.dumps(_rewrite_urls(section)))
+        day_sections = day_dir / "sections"
+        day_sections.mkdir(exist_ok=True)
+        for name, preset in SECTION_PRESETS.items():
+            a, b = _clamp_preset(preset, backend.engine.store)
+            try:
+                section = backend.section(date, a, b, N_SECTION_POINTS, model).model_dump()
+            except LandCellError:  # a preset endpoint can fall on land in a synthetic or cropped grid
+                continue
+            (day_sections / f"{name}.json").write_text(json.dumps(_rewrite_urls(section)))
+        _write_day_fields(np.load(cache.fields_path(backend.cache_root, date, model)), day_dir, backend.engine.store)
+        _write_day_argo(backend, date, day_dir)
         _copy_tiles_for(backend, date, model, fallback_dir)
 
     if dates:
@@ -162,7 +207,10 @@ def _write_fallback(backend: LiveBackend, model: str, test_dates: list[str], fal
         sections_dir.mkdir(exist_ok=True)
         for name, preset in SECTION_PRESETS.items():
             a, b = _clamp_preset(preset, backend.engine.store)
-            section = backend.section(dates[0], a, b, N_SECTION_POINTS, model).model_dump()
+            try:
+                section = backend.section(dates[0], a, b, N_SECTION_POINTS, model).model_dump()
+            except LandCellError:
+                continue
             (sections_dir / f"{name}.json").write_text(json.dumps(_rewrite_urls(section)))
 
 

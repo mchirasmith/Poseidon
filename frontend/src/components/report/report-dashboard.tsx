@@ -7,8 +7,24 @@ import { MetricShell, ReportPanel } from "@/components/report/report-primitives"
 import { OceanDepthStack } from "@/components/report/ocean-depth-stack";
 import { OCEAN_DEPTH_LAYERS, type OceanDepthLayer } from "@/lib/ocean-layers-data";
 import { TrackShiftSpinner } from "@/components/ui/trackshift-spinner";
+import {
+  MODEL_LABELS,
+  REGION_LABELS,
+  SEASON_LABELS,
+  buildDepthLayers,
+  depthMetric,
+  fmt,
+  fmtSigned,
+  loadReport,
+  type DepthLayerSkill,
+  type ReportJson,
+  type ReportModel,
+  type ReportRegion,
+  type ReportSeason,
+} from "@/lib/report";
 
-function ReportHeader({ layer }: { layer: OceanDepthLayer }) {
+function ReportHeader({ layer, report }: { layer: OceanDepthLayer; report: ReportJson | null }) {
+  const n = report?.argo_scatter.lite?.n;
   return (
     <header className="flex flex-col gap-5 border-b border-white/15 pb-5 lg:flex-row lg:items-center lg:justify-between">
       <div className="flex items-center gap-4">
@@ -26,14 +42,20 @@ function ReportHeader({ layer }: { layer: OceanDepthLayer }) {
           <h1 className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl">Validation report</h1>
         </div>
       </div>
+      <p className="font-mono text-xs text-white/50">
+        Held-out 2019–2020 test days vs GLORYS
+        {typeof n === "number" ? ` · ${n.toLocaleString()} Argo matchups` : ""}
+      </p>
     </header>
   );
 }
 
 function SkillByDepthShell({
+  layers,
   selectedIndex,
   onSelectIndex,
 }: {
+  layers: OceanDepthLayer[];
   selectedIndex: number;
   onSelectIndex: (index: number) => void;
 }) {
@@ -42,19 +64,31 @@ function SkillByDepthShell({
       title="Skill by depth · 3D Ocean Stratification"
       description="Interactive 15-layer subsurface temperature reconstruction from satellite surface observations for the North Indian Ocean (0 m to 1000 m)."
     >
-      <OceanDepthStack selectedIndex={selectedIndex} onSelectIndex={onSelectIndex} />
+      <OceanDepthStack layers={layers} selectedIndex={selectedIndex} onSelectIndex={onSelectIndex} />
     </ReportPanel>
   );
 }
 
-function UncertaintyCalibrationCard({ layer }: { layer: OceanDepthLayer }) {
-  const intWidth = (layer.rmsePoseidon * 1.85).toFixed(2);
-  const coverage = (88.5 + (layer.correlation - 0.92) * 20).toFixed(1);
+const NOMINAL_LEVELS = [0.5, 0.8, 0.9, 0.95];
+
+function UncertaintyCalibrationCard({ layer, report }: { layer: OceanDepthLayer; report: ReportJson }) {
+  const cal = report.calibration;
+  const coverage = cal.coverage ?? {};
+  const points = NOMINAL_LEVELS.map((nominal) => {
+    const empirical = coverage[String(nominal)];
+    return { nominal, empirical: typeof empirical === "number" ? empirical : NaN };
+  }).filter((p) => Number.isFinite(p.empirical));
+
+  // plot frame: x 50..390 for 0..100 % nominal, y 180..20 for 0..100 % empirical
+  const px = (v: number) => 50 + v * 340;
+  const py = (v: number) => 180 - v * 160;
+  const polyline = points.map((p) => `${px(p.nominal)},${py(p.empirical)}`).join(" ");
+  const cov90 = coverage["0.9"];
 
   return (
     <ReportPanel
-      title={`Uncertainty Calibration & Coverage · ${layer.depth} m`}
-      description={`Nominal vs empirical confidence coverage across held-out ensemble predictions for the ${layer.depth} m depth plane (${layer.zone}).`}
+      title="Uncertainty Calibration & Coverage"
+      description={`Nominal vs empirical coverage of the predicted intervals on the held-out test days, after temperature scaling fitted on the 2018 calibration year. The ${layer.depth} m layer (${layer.zone}) is selected above.`}
     >
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 items-center">
         <div className="lg:col-span-8 relative h-64 w-full overflow-hidden rounded-xl border border-white/10 bg-black/40 p-3">
@@ -69,23 +103,24 @@ function UncertaintyCalibrationCard({ layer }: { layer: OceanDepthLayer }) {
             <line x1="220" y1="20" x2="220" y2="180" stroke="rgba(255,255,255,0.06)" strokeDasharray="3 3" />
             <line x1="305" y1="20" x2="305" y2="180" stroke="rgba(255,255,255,0.06)" strokeDasharray="3 3" />
 
+            {/* perfect calibration */}
             <line x1="50" y1="180" x2="390" y2="20" stroke="rgba(255,255,255,0.3)" strokeWidth="1.2" strokeDasharray="4 4" />
 
-            <polyline
-              points="50,180 84,164 118,148 152,132 186,116 220,100 254,84 288,68 322,52 356,36 390,20"
-              fill="none"
-              stroke="#22d3ee"
-              strokeWidth="2.5"
-            />
-
-            {[
-              [84, 164],
-              [152, 132],
-              [220, 100],
-              [288, 68],
-              [356, 36],
-            ].map(([cx, cy], i) => (
-              <circle key={i} cx={cx} cy={cy} r="4" fill="#0891b2" stroke="#67e8f9" strokeWidth="2" />
+            {points.length > 1 && <polyline points={polyline} fill="none" stroke="#22d3ee" strokeWidth="2.5" />}
+            {points.map((p) => (
+              <g key={p.nominal}>
+                <circle cx={px(p.nominal)} cy={py(p.empirical)} r="4" fill="#0891b2" stroke="#67e8f9" strokeWidth="2" />
+                <text
+                  x={px(p.nominal)}
+                  y={py(p.empirical) - 9}
+                  fill="rgba(255,255,255,0.7)"
+                  fontSize="9"
+                  textAnchor="middle"
+                  fontFamily="monospace"
+                >
+                  {(p.empirical * 100).toFixed(1)}%
+                </text>
+              </g>
             ))}
 
             <text x="220" y="205" fill="rgba(255,255,255,0.6)" fontSize="10" textAnchor="middle" fontFamily="monospace">Nominal Credible Interval (%)</text>
@@ -99,15 +134,17 @@ function UncertaintyCalibrationCard({ layer }: { layer: OceanDepthLayer }) {
 
         <div className="lg:col-span-4 flex flex-col gap-3">
           <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
-            <span className="text-white/50 text-xs font-mono block">90% INTERVAL WIDTH ({layer.depth}M)</span>
-            <span className="text-2xl font-bold font-mono text-cyan-300">{intWidth} °C</span>
-            <p className="mt-1 text-xs text-neutral-300/70 leading-relaxed">Tight credible bound indicating high model sharpness in the {layer.zone} layer.</p>
+            <span className="text-white/50 text-xs font-mono block">MEAN 90% INTERVAL WIDTH</span>
+            <span className="text-2xl font-bold font-mono text-cyan-300">{fmt(cal.mean_interval_width_90, 2, " °C")}</span>
+            <p className="mt-1 text-xs text-neutral-300/70 leading-relaxed">Average p90 − p10 spread over all wet cells and depths on the test days.</p>
           </div>
           <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
             <span className="text-white/50 text-xs font-mono block">EMPIRICAL COVERAGE (90% TARGET)</span>
-            <span className="text-2xl font-bold font-mono text-emerald-400">{coverage}%</span>
+            <span className="text-2xl font-bold font-mono text-emerald-400">
+              {typeof cov90 === "number" ? `${(cov90 * 100).toFixed(1)}%` : "—"}
+            </span>
             <p className="mt-1 text-xs text-neutral-300/70 leading-relaxed">
-              Well-calibrated uncertainty with minimal drift across the {layer.tempMin.toFixed(1)}°–{layer.tempMax.toFixed(1)}°C temperature range.
+              NLL {fmt(cal.nll, 3)} · CRPS {fmt(cal.crps, 3, " °C")} across the {layer.tempMin.toFixed(1)}°–{layer.tempMax.toFixed(1)}°C range.
             </p>
           </div>
         </div>
@@ -188,28 +225,54 @@ function TableShell({
   );
 }
 
+const SLICES: { region: ReportRegion; season: ReportSeason }[] = [
+  { region: "arabian_sea", season: "JJAS" },
+  { region: "arabian_sea", season: "DJF" },
+  { region: "bay_of_bengal", season: "ON" },
+  { region: "bay_of_bengal", season: "MAM" },
+  { region: "overall", season: "all" },
+];
+
+const BASELINES: ReportModel[] = ["lite", "gbm", "climatology"];
+
 export function ReportDashboard() {
-  const [isLoading, setIsLoading] = useState(true);
+  const [report, setReport] = useState<ReportJson | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [isLayerLoading, setIsLayerLoading] = useState(false);
   const [loadingTitle, setLoadingTitle] = useState("Loading Validation Report");
   const [loadingSubtitle, setLoadingSubtitle] = useState(
     "Fetching locked test-set benchmarks (2019–2020) and Argo matchup stats..."
   );
   const [selectedIndex, setSelectedIndex] = useState<number>(7); // Default to 100m
-  const selectedLayer = OCEAN_DEPTH_LAYERS[selectedIndex];
 
   useEffect(() => {
-    const timer = setTimeout(() => setIsLoading(false), 700);
-    return () => clearTimeout(timer);
+    let cancelled = false;
+    loadReport()
+      .then((r) => {
+        if (!cancelled) setReport(r);
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) setLoadError(`The precomputed report is missing (${String(err)}).`);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
+
+  const layers: DepthLayerSkill[] = useMemo(
+    () => (report ? buildDepthLayers(report) : OCEAN_DEPTH_LAYERS.map((l) => ({ ...l, rmseGbm: NaN, skillScore: NaN }))),
+    [report]
+  );
+  const selectedLayer = layers[selectedIndex];
+  const isLoading = report === null && loadError === null;
 
   const handleSelectIndex = useCallback(
     (index: number) => {
       if (index === selectedIndex) return;
-      const targetLayer = OCEAN_DEPTH_LAYERS[index];
+      const targetLayer = layers[index];
       setLoadingTitle(`Evaluating ${targetLayer.depth} m Depth Tier`);
       setLoadingSubtitle(
-        `Retrieving independent Argo matchup benchmarks and calibration for ${targetLayer.depth} m (${targetLayer.zone})...`
+        `Reading held-out skill and Argo matchup statistics for ${targetLayer.depth} m (${targetLayer.zone})...`
       );
       setIsLayerLoading(true);
       setSelectedIndex(index);
@@ -217,139 +280,76 @@ export function ReportDashboard() {
         setIsLayerLoading(false);
       }, 550);
     },
-    [selectedIndex]
+    [selectedIndex, layers]
   );
 
   const dynamicMetrics = useMemo(() => {
     const baseline = selectedLayer.rmseClimatology;
     const model = selectedLayer.rmsePoseidon;
-    const skillPct = Math.round(((baseline - model) / baseline) * 100);
-    const biasVal =
-      selectedLayer.anomaly >= 0
-        ? `+${(selectedLayer.anomaly * 0.05).toFixed(2)}`
-        : `${(selectedLayer.anomaly * 0.05).toFixed(2)}`;
+    const skillPct = Number.isFinite(baseline) && Number.isFinite(model) && baseline > 0 ? Math.round(((baseline - model) / baseline) * 100) : NaN;
+    const crps = report?.calibration.crps;
 
     return [
       {
         label: "RMSE",
         unit: "°C",
-        sublabel: `evaluation at ${selectedLayer.depth} m (${selectedLayer.zone})`,
-        value: model.toFixed(2),
-        delta: `-${skillPct}% vs Climatology`,
-        isPositiveDelta: true,
+        sublabel: `vs GLORYS at ${selectedLayer.depth} m (${selectedLayer.zone}), held-out test days`,
+        value: fmt(model),
+        delta: Number.isFinite(skillPct) ? `${skillPct >= 0 ? "-" : "+"}${Math.abs(skillPct)}% vs Climatology` : "—",
+        isPositiveDelta: Number.isFinite(skillPct) && skillPct >= 0,
         statusBadge: selectedLayer.isD20Isotherm ? "D20 ISOTHERM" : selectedLayer.isMLD ? "MLD BASE" : "LAYER EVAL",
       },
       {
         label: "Bias",
         unit: "°C",
-        sublabel: `systematic error across ${selectedLayer.depth} m slice`,
-        value: `${biasVal}`,
-        delta: "Zero-Centered",
-        isPositiveDelta: true,
-        statusBadge: "CALIBRATED",
+        sublabel: `mean error across the ${selectedLayer.depth} m slice`,
+        value: fmtSigned(selectedLayer.bias),
+        delta: Number.isFinite(selectedLayer.bias) && Math.abs(selectedLayer.bias) < 0.25 ? "Zero-Centered" : "Systematic",
+        isPositiveDelta: Number.isFinite(selectedLayer.bias) && Math.abs(selectedLayer.bias) < 0.25,
+        statusBadge: "MEAN ERROR",
       },
       {
         label: "Correlation",
         unit: "",
-        sublabel: `spatial & vertical coherence at ${selectedLayer.depth} m`,
-        value: selectedLayer.correlation.toFixed(3),
+        sublabel: `spatial coherence with GLORYS at ${selectedLayer.depth} m`,
+        value: fmt(selectedLayer.correlation, 3),
         delta: "Pearson R",
-        isPositiveDelta: true,
-        statusBadge: selectedLayer.correlation >= 0.96 ? "EXCELLENT" : "HIGH FIDELITY",
+        isPositiveDelta: Number.isFinite(selectedLayer.correlation) && selectedLayer.correlation > 0.5,
+        statusBadge: selectedLayer.correlation >= 0.9 ? "EXCELLENT" : "HIGH FIDELITY",
       },
       {
         label: "CRPS",
         unit: "°C",
-        sublabel: `probabilistic score at ${selectedLayer.depth} m depth`,
-        value: (model * 0.68).toFixed(2),
-        delta: "Top Probabilistic",
-        isPositiveDelta: true,
+        sublabel: "probabilistic score, all depths and test days",
+        value: fmt(crps),
+        delta: `skill score ${fmt(selectedLayer.skillScore, 2)} at ${selectedLayer.depth} m`,
+        isPositiveDelta: Number.isFinite(selectedLayer.skillScore) && selectedLayer.skillScore > 0,
         statusBadge: "UNCERTAINTY",
       },
     ];
-  }, [selectedLayer]);
+  }, [selectedLayer, report]);
 
-  const basinSeasonRows = useMemo(
-    () => [
-      [
-        "Arabian Sea · SW Monsoon (Jun–Sep)",
-        `${(selectedLayer.rmsePoseidon * 1.1).toFixed(2)} °C`,
-        "+0.05 °C",
-        (selectedLayer.correlation * 0.995).toFixed(3),
-        `${(selectedLayer.rmsePoseidon * 0.72).toFixed(2)} °C`,
-      ],
-      [
-        "Arabian Sea · NE Monsoon (Dec–Feb)",
-        `${(selectedLayer.rmsePoseidon * 0.9).toFixed(2)} °C`,
-        "-0.02 °C",
-        (selectedLayer.correlation * 1.002 > 0.999 ? 0.995 : selectedLayer.correlation * 1.002).toFixed(3),
-        `${(selectedLayer.rmsePoseidon * 0.62).toFixed(2)} °C`,
-      ],
-      [
-        "Bay of Bengal · Post-Monsoon (Oct–Nov)",
-        `${(selectedLayer.rmsePoseidon * 1.02).toFixed(2)} °C`,
-        "+0.04 °C",
-        (selectedLayer.correlation * 0.998).toFixed(3),
-        `${(selectedLayer.rmsePoseidon * 0.69).toFixed(2)} °C`,
-      ],
-      [
-        "Bay of Bengal · Pre-Monsoon (Mar–May)",
-        `${(selectedLayer.rmsePoseidon * 0.98).toFixed(2)} °C`,
-        "+0.02 °C",
-        (selectedLayer.correlation * 1.001 > 0.999 ? 0.994 : selectedLayer.correlation * 1.001).toFixed(3),
-        `${(selectedLayer.rmsePoseidon * 0.66).toFixed(2)} °C`,
-      ],
-      [
-        "Equatorial Indian Ocean (Annual)",
-        `${(selectedLayer.rmsePoseidon * 0.86).toFixed(2)} °C`,
-        "+0.01 °C",
-        (selectedLayer.correlation * 1.005 > 0.999 ? 0.997 : selectedLayer.correlation * 1.005).toFixed(3),
-        `${(selectedLayer.rmsePoseidon * 0.58).toFixed(2)} °C`,
-      ],
-    ],
-    [selectedLayer]
-  );
+  const basinSeasonRows = useMemo(() => {
+    if (!report) return [];
+    return SLICES.map(({ region, season }) => [
+      `${REGION_LABELS[region]} · ${SEASON_LABELS[season]}`,
+      fmt(depthMetric(report, "lite", "rmse", selectedIndex, region, season), 2, " °C"),
+      fmtSigned(depthMetric(report, "lite", "bias", selectedIndex, region, season), 2, " °C"),
+      fmt(depthMetric(report, "lite", "r", selectedIndex, region, season), 3),
+      fmt(depthMetric(report, "lite", "skill_score", selectedIndex, region, season), 2),
+    ]);
+  }, [report, selectedIndex]);
 
-  const baselinesRows = useMemo(
-    () => [
-      [
-        `Poseidon (${selectedLayer.depth} m · ${selectedLayer.zone})`,
-        `${selectedLayer.rmsePoseidon.toFixed(2)} °C`,
-        "+0.03 °C",
-        selectedLayer.correlation.toFixed(3),
-        `${(selectedLayer.rmsePoseidon * 0.68).toFixed(2)} °C`,
-      ],
-      [
-        `ConvLSTM U-Net (${selectedLayer.depth} m)`,
-        `${selectedLayer.rmseUNet.toFixed(2)} °C`,
-        "-0.08 °C",
-        (selectedLayer.correlation - 0.03).toFixed(3),
-        `${(selectedLayer.rmseUNet * 0.7).toFixed(2)} °C`,
-      ],
-      [
-        `Standard 2D U-Net (${selectedLayer.depth} m)`,
-        `${(selectedLayer.rmseUNet * 1.18).toFixed(2)} °C`,
-        "+0.11 °C",
-        (selectedLayer.correlation - 0.05).toFixed(3),
-        `${(selectedLayer.rmseUNet * 0.82).toFixed(2)} °C`,
-      ],
-      [
-        `Ridge / EOF (${selectedLayer.depth} m)`,
-        `${(selectedLayer.rmseClimatology * 0.78).toFixed(2)} °C`,
-        "-0.16 °C",
-        "0.841",
-        `${(selectedLayer.rmseClimatology * 0.58).toFixed(2)} °C`,
-      ],
-      [
-        `WOA23 Climatology (${selectedLayer.depth} m)`,
-        `${selectedLayer.rmseClimatology.toFixed(2)} °C`,
-        "+0.23 °C",
-        "0.782",
-        `${(selectedLayer.rmseClimatology * 0.71).toFixed(2)} °C`,
-      ],
-    ],
-    [selectedLayer]
-  );
+  const baselinesRows = useMemo(() => {
+    if (!report) return [];
+    return BASELINES.map((model) => [
+      `${MODEL_LABELS[model]} (${selectedLayer.depth} m)`,
+      fmt(depthMetric(report, model, "rmse", selectedIndex), 2, " °C"),
+      fmtSigned(depthMetric(report, model, "bias", selectedIndex), 2, " °C"),
+      fmt(depthMetric(report, model, "r", selectedIndex), 3),
+      fmt(depthMetric(report, model, "skill_score", selectedIndex), 2),
+    ]);
+  }, [report, selectedIndex, selectedLayer.depth]);
 
   return (
     <>
@@ -366,35 +366,47 @@ export function ReportDashboard() {
 
       <main className="relative min-h-screen px-4 pb-8 pt-6 text-white sm:px-6 sm:pt-8 lg:px-8">
       <div className="relative mx-auto max-w-7xl">
-        <ReportHeader layer={selectedLayer} />
+        <ReportHeader layer={selectedLayer} report={report} />
+        {loadError && (
+          <div
+            role="alert"
+            className="mt-5 rounded-xl border border-amber-400/40 bg-amber-500/10 px-4 py-3 font-mono text-xs text-amber-200"
+          >
+            {loadError} Run <code>backend/scripts/run_all.py</code> to regenerate <code>frontend/public/fallback</code>.
+          </div>
+        )}
         <section className="mt-5">
-          <SkillByDepthShell selectedIndex={selectedIndex} onSelectIndex={handleSelectIndex} />
+          <SkillByDepthShell layers={layers} selectedIndex={selectedIndex} onSelectIndex={handleSelectIndex} />
         </section>
         <section className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-label="Headline metrics">
           {dynamicMetrics.map((metric) => (
             <MetricShell key={metric.label} metric={metric} />
           ))}
         </section>
-        <section className="mt-6">
-          <UncertaintyCalibrationCard layer={selectedLayer} />
-        </section>
-        <section className="mt-6 grid gap-6 lg:grid-cols-2">
-          <TableShell
-            title={`Per-basin & per-season summary · ${selectedLayer.depth} m`}
-            description={`RMSE, bias, correlation, and CRPS at ${selectedLayer.depth} m depth across Indian Ocean sub-basins and monsoon cycles.`}
-            columns={["Slice", "RMSE", "Bias", "Correlation", "CRPS"]}
-            rows={basinSeasonRows}
-          />
-          <TableShell
-            title={`Baselines & ablations · ${selectedLayer.depth} m benchmark`}
-            description={`Model benchmark comparison evaluated specifically at the ${selectedLayer.depth} m depth slice.`}
-            columns={["Method", "RMSE", "Bias", "Correlation", "CRPS"]}
-            rows={baselinesRows}
-            highlightFirstRow={true}
-          />
-        </section>
+        {report && (
+          <>
+            <section className="mt-6">
+              <UncertaintyCalibrationCard layer={selectedLayer} report={report} />
+            </section>
+            <section className="mt-6 grid gap-6 lg:grid-cols-2">
+              <TableShell
+                title={`Per-basin & per-season summary · ${selectedLayer.depth} m`}
+                description={`Poseidon lite vs GLORYS at ${selectedLayer.depth} m across sub-basins and monsoon seasons of the held-out test days. Skill is 1 − MSE / MSE(climatology).`}
+                columns={["Slice", "RMSE", "Bias", "Correlation", "Skill"]}
+                rows={basinSeasonRows}
+              />
+              <TableShell
+                title={`Baselines · ${selectedLayer.depth} m benchmark`}
+                description={`The three exported models evaluated on the same test days at the ${selectedLayer.depth} m depth slice.`}
+                columns={["Method", "RMSE", "Bias", "Correlation", "Skill"]}
+                rows={baselinesRows}
+                highlightFirstRow={true}
+              />
+            </section>
+          </>
+        )}
         <footer className="flex flex-col gap-3 py-10 text-xs text-white/45 sm:flex-row sm:items-center sm:justify-between">
-          <span>Read-only validation workspace · values validated against independent Argo test profiles.</span>
+          <span>Read-only validation workspace · numbers come from the precomputed report, no backend required.</span>
           <span className="flex items-center gap-2">
             <Waves aria-hidden="true" size={14} /> Poseidon ocean temperature intelligence
           </span>

@@ -12,11 +12,34 @@ import { SectionHeatmap } from "@/components/section/section-heatmap";
 import { TrackShiftSpinner } from "@/components/ui/trackshift-spinner";
 import {
   TRANSECT_PRESETS,
-  generateSectionData,
+  emptySectionData,
   type SectionMode,
   type TransectCoordinate,
   type TransectPreset,
 } from "@/lib/section";
+import {
+  computeSection,
+  loadDayFields,
+  loadMeta,
+  nearestAvailableDate,
+  type CuratedDay,
+  type DayFields,
+} from "@/lib/fallback";
+
+const DEFAULT_DATE = "2020-05-18";
+
+/** Mean of the finite entries, NaN when there are none. */
+function finiteMean(values: Iterable<number>): number {
+  let sum = 0;
+  let count = 0;
+  for (const v of values) {
+    if (Number.isFinite(v)) {
+      sum += v;
+      count++;
+    }
+  }
+  return count > 0 ? sum / count : NaN;
+}
 
 export function SectionDashboard() {
   const searchParams = useSearchParams();
@@ -25,7 +48,7 @@ export function SectionDashboard() {
   const initialPreset = TRANSECT_PRESETS[0];
 
   const [date, setDate] = useState<string>(() => {
-    return searchParams.get("d") || "2020-05-18";
+    return searchParams.get("d") || DEFAULT_DATE;
   });
 
   const [coordA, setCoordA] = useState<TransectCoordinate>(() => {
@@ -56,18 +79,31 @@ export function SectionDashboard() {
     return !isNaN(z) && z >= 0 ? z : 100;
   });
 
-  // Loading states
-  const [isInitialLoading, setIsInitialLoading] = useState(true);
+  // Precomputed bundle: which days exist, and the selected day's 3D fields
+  const [curatedDays, setCuratedDays] = useState<CuratedDay[]>([]);
+  const [fields, setFields] = useState<DayFields | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  // Cosmetic transition spinner for map/mode/depth changes
   const [isTaskLoading, setIsTaskLoading] = useState(false);
   const [loadingTitle, setLoadingTitle] = useState("Computing Vertical Section");
   const [loadingSubtitle, setLoadingSubtitle] = useState(
-    "Running Poseidon neural inversion across 15 depth tiers, please wait (this takes a few seconds)..."
+    "Cutting the vertical section from the precomputed 15-layer reconstruction..."
   );
 
   // Overlay visibility states
   const [showD20, setShowD20] = useState(true);
   const [showMLD, setShowMLD] = useState(true);
   const [showArgo, setShowArgo] = useState(true);
+
+  const availableDates = useMemo(() => curatedDays.map((d) => d.date).sort(), [curatedDays]);
+  // Only bundled days can be shown: anything else resolves to the nearest one
+  const activeDate = useMemo(
+    () => (availableDates.length === 0 || availableDates.includes(date) ? date : nearestAvailableDate(availableDates, date)),
+    [availableDates, date]
+  );
+  const dayLabel = useMemo(() => curatedDays.find((d) => d.date === activeDate)?.label, [curatedDays, activeDate]);
+  const isFieldsLoading = loadError === null && (fields === null || fields.date !== activeDate);
 
   // Helper to trigger smooth full-page loading spinner on any user task
   const triggerLoading = useCallback((title: string, subtitle: string, duration = 650) => {
@@ -79,18 +115,47 @@ export function SectionDashboard() {
     }, duration);
   }, []);
 
-  // Initial page load simulation
+  // Bundle index: the curated days that have precomputed fields
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsInitialLoading(false);
-    }, 750);
-    return () => clearTimeout(timer);
+    let cancelled = false;
+    loadMeta()
+      .then((meta) => {
+        if (cancelled) return;
+        const days = meta.curated_days.length
+          ? meta.curated_days
+          : meta.cached_days.map((d) => ({ date: d, label: "" }));
+        setCuratedDays(days);
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) setLoadError(`The precomputed bundle is missing (${String(err)}).`);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
+
+  // Fetch the active day's mean / sigma / GLORYS fields and Argo positions
+  useEffect(() => {
+    if (availableDates.length === 0) return;
+    let cancelled = false;
+    loadDayFields(activeDate)
+      .then((loaded) => {
+        if (cancelled) return;
+        setFields(loaded);
+        setLoadError(null);
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) setLoadError(`Could not load the fields for ${activeDate} (${String(err)}).`);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeDate, availableDates]);
 
   // Sync state back to URL query parameters
   useEffect(() => {
     const params = new URLSearchParams();
-    params.set("d", date);
+    params.set("d", activeDate);
     params.set("a", `${coordA.lat},${coordA.lon}`);
     params.set("b", `${coordB.lat},${coordB.lon}`);
     params.set("mode", mode);
@@ -98,25 +163,19 @@ export function SectionDashboard() {
 
     const newUrl = `${window.location.pathname}?${params.toString()}`;
     window.history.replaceState(null, "", newUrl);
-  }, [date, coordA, coordB, mode, mapDepth]);
+  }, [activeDate, coordA, coordB, mode, mapDepth]);
 
-  // Compute section dataset based on transect coordinates and date
+  // Cut the section along the transect from the day's fields, in the browser
   const sectionData = useMemo(() => {
-    return generateSectionData(coordA, coordB, date);
-  }, [coordA, coordB, date]);
+    return fields ? computeSection(fields, coordA, coordB) : emptySectionData();
+  }, [fields, coordA, coordB]);
 
-  // Handle date change with animated full-page loading spinner
   const handleDateChange = useCallback(
     (newDate: string) => {
-      if (newDate === date) return;
+      if (newDate === activeDate) return;
       setDate(newDate);
-      triggerLoading(
-        "Updating Ocean Inversion",
-        `Re-computing 3D vertical thermal section for ${newDate}...`,
-        700
-      );
     },
-    [date, triggerLoading]
+    [activeDate]
   );
 
   // Handle preset selection with animated loading spinner
@@ -179,29 +238,13 @@ export function SectionDashboard() {
   }, [coordA, coordB]);
 
   // Oceanographic scalar aggregates along the transect line
-  const meanD20 = useMemo(() => {
-    if (!sectionData.d20_m.length) return 105;
-    const sum = sectionData.d20_m.reduce((acc, v) => acc + v, 0);
-    return Math.round(sum / sectionData.d20_m.length);
-  }, [sectionData]);
-
-  const meanMLD = useMemo(() => {
-    if (!sectionData.mld_m.length) return 32;
-    const sum = sectionData.mld_m.reduce((acc, v) => acc + v, 0);
-    return Math.round(sum / sectionData.mld_m.length);
-  }, [sectionData]);
-
+  const meanD20 = useMemo(() => finiteMean(sectionData.d20_m), [sectionData]);
+  const meanMLD = useMemo(() => finiteMean(sectionData.mld_m), [sectionData]);
   const meanUncertainty = useMemo(() => {
-    let sum = 0;
-    let count = 0;
-    for (const row of sectionData.sigma) {
-      for (const val of row) {
-        sum += val;
-        count++;
-      }
-    }
-    return count > 0 ? (sum / count).toFixed(2) : "0.45";
+    return finiteMean(sectionData.sigma.flat());
   }, [sectionData]);
+
+  const fmtMetres = (v: number) => (Number.isFinite(v) ? `${Math.round(v)}` : "—");
 
   // 4 headline metric cards matching validation report styling exactly
   const dynamicMetrics: ReportMetricDefinition[] = useMemo(() => {
@@ -209,7 +252,7 @@ export function SectionDashboard() {
       {
         label: "Transect Span",
         unit: "km",
-        sublabel: `great-circle distance across ${sectionData.lats.length} sampled points`,
+        sublabel: `great-circle distance across ${sectionData.lats.length} sampled grid cells`,
         value: `${sectionData.totalDistanceKm}`,
         delta: "Great-Circle Arc",
         isPositiveDelta: true,
@@ -218,8 +261,8 @@ export function SectionDashboard() {
       {
         label: "D20 Thermocline",
         unit: "m",
-        sublabel: `mean 20°C isotherm depth boundary across transect for ${date}`,
-        value: `${meanD20}`,
+        sublabel: `mean 20°C isotherm depth along the transect for ${activeDate}`,
+        value: fmtMetres(meanD20),
         delta: "Subsurface Core",
         isPositiveDelta: true,
         statusBadge: "THERMOCLINE",
@@ -227,8 +270,8 @@ export function SectionDashboard() {
       {
         label: "Mixed Layer Depth",
         unit: "m",
-        sublabel: "turbulent surface mixed layer base depth along slice",
-        value: `${meanMLD}`,
+        sublabel: "depth where T falls 0.2°C below its 10 m value, mean along slice",
+        value: fmtMetres(meanMLD),
         delta: "Wind-Driven MLD",
         isPositiveDelta: true,
         statusBadge: "MLD BASE",
@@ -236,14 +279,14 @@ export function SectionDashboard() {
       {
         label: "Mean Uncertainty",
         unit: "°C",
-        sublabel: `ensemble 1σ confidence across all 15 depth tiers`,
-        value: `±${meanUncertainty}`,
-        delta: "Sharp Bound",
+        sublabel: `predicted 1σ across all 15 depth tiers`,
+        value: Number.isFinite(meanUncertainty) ? `±${meanUncertainty.toFixed(2)}` : "—",
+        delta: "Calibrated on 2018",
         isPositiveDelta: true,
-        statusBadge: "CALIBRATED",
+        statusBadge: "1σ",
       },
     ];
-  }, [sectionData, matchedPreset, meanD20, meanMLD, meanUncertainty, date]);
+  }, [sectionData, matchedPreset, meanD20, meanMLD, meanUncertainty, activeDate]);
 
   const handleCoordinatesChange = useCallback((newA: TransectCoordinate, newB: TransectCoordinate) => {
     setCoordA(newA);
@@ -253,11 +296,11 @@ export function SectionDashboard() {
   return (
     <>
       <TrackShiftSpinner
-        isLoading={isInitialLoading || isTaskLoading}
-        title={isInitialLoading ? "Computing Vertical Section" : loadingTitle}
+        isLoading={isFieldsLoading || isTaskLoading}
+        title={isFieldsLoading ? `Loading ${activeDate}` : loadingTitle}
         subtitle={
-          isInitialLoading
-            ? "Running Poseidon neural inversion across 15 depth tiers, please wait (this takes a few seconds)..."
+          isFieldsLoading
+            ? "Fetching the precomputed 15-layer temperature reconstruction for this day..."
             : loadingSubtitle
         }
         isFullPage={true}
@@ -267,12 +310,23 @@ export function SectionDashboard() {
         <div className="relative mx-auto max-w-7xl">
           {/* Header Strip */}
           <SectionHeader
-            date={date}
+            date={activeDate}
+            availableDates={availableDates}
+            dayLabel={dayLabel}
             preset={matchedPreset}
             totalDistanceKm={sectionData.totalDistanceKm}
             isLoading={isTaskLoading}
             onDateChange={handleDateChange}
           />
+
+          {loadError && (
+            <div
+              role="alert"
+              className="mt-5 rounded-xl border border-amber-400/40 bg-amber-500/10 px-4 py-3 font-mono text-xs text-amber-200"
+            >
+              {loadError} Run <code>backend/scripts/run_all.py</code> to regenerate <code>frontend/public/fallback</code>.
+            </div>
+          )}
 
           {/* Section 1: Transect Navigation Map */}
           <section className="mt-5">
@@ -303,7 +357,7 @@ export function SectionDashboard() {
           <section className="mt-6">
             <ReportPanel
               title="Vertical Stratification Heatmap · 0 m to 1000 m"
-              description="High-resolution depth vs distance vertical cross-section with D20 thermocline, mixed layer depth, and collocated Argo float profiles."
+              description="Depth vs distance cross-section sampled on the nearest 0.25° grid cell, with D20 thermocline, mixed layer depth, and Argo floats within 55 km and ±2 days."
             >
               <SectionControls
                 mode={mode}
@@ -314,29 +368,30 @@ export function SectionDashboard() {
                 onToggleMLD={() => setShowMLD((v) => !v)}
                 showArgo={showArgo}
                 onToggleArgo={() => setShowArgo((v) => !v)}
-                meanD20={meanD20}
-                meanMLD={meanMLD}
+                meanD20={Number.isFinite(meanD20) ? Math.round(meanD20) : 0}
+                meanMLD={Number.isFinite(meanMLD) ? Math.round(meanMLD) : 0}
                 argoCount={sectionData.argo_markers.length}
               />
-            <SectionHeatmap
-              data={sectionData}
-              mode={mode}
-              showD20={showD20}
-              showMLD={showMLD}
-              showArgo={showArgo}
-            />
-          </ReportPanel>
-        </section>
+              <SectionHeatmap
+                data={sectionData}
+                mode={mode}
+                showD20={showD20}
+                showMLD={showMLD}
+                showArgo={showArgo}
+              />
+            </ReportPanel>
+          </section>
 
-        {/* Footer matching Validation Report exactly */}
-        <footer className="flex flex-col gap-3 py-10 text-xs text-white/45 sm:flex-row sm:items-center sm:justify-between">
-          <span>Read-only validation workspace · values validated against independent Argo test profiles.</span>
-          <span className="flex items-center gap-2">
-            <Waves aria-hidden="true" size={14} /> Poseidon ocean temperature intelligence
-          </span>
-        </footer>
-      </div>
-    </main>
+          <footer className="flex flex-col gap-3 py-10 text-xs text-white/45 sm:flex-row sm:items-center sm:justify-between">
+            <span>
+              Precomputed held-out test days · {availableDates.length} curated dates bundled, no backend required.
+            </span>
+            <span className="flex items-center gap-2">
+              <Waves aria-hidden="true" size={14} /> Poseidon ocean temperature intelligence
+            </span>
+          </footer>
+        </div>
+      </main>
     </>
   );
 }

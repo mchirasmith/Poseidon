@@ -41,6 +41,8 @@ interface GlassCalendarProps extends Omit<React.HTMLAttributes<HTMLDivElement>, 
   minDate?: Date;
   /** Latest selectable day, inclusive. */
   maxDate?: Date;
+  /** Extra per-day rule, e.g. only days with precomputed data. */
+  isDateDisabled?: (date: Date) => boolean;
   className?: string;
 }
 
@@ -56,7 +58,7 @@ function rangeEndOf(anchor: Date, mode: ViewMode): Date {
 
 // --- MAIN COMPONENT ---
 export const GlassCalendar = React.forwardRef<HTMLDivElement, GlassCalendarProps>(
-  ({ className, selectedDate: propSelectedDate, onDateSelect, minDate, maxDate, ...props }, ref) => {
+  ({ className, selectedDate: propSelectedDate, onDateSelect, minDate, maxDate, isDateDisabled, ...props }, ref) => {
     const selectedDate = React.useMemo(() => propSelectedDate ?? new Date(), [propSelectedDate]);
     const [viewMode, setViewMode] = React.useState<ViewMode>("weekly");
 
@@ -86,11 +88,11 @@ export const GlassCalendar = React.forwardRef<HTMLDivElement, GlassCalendarProps
           date,
           isToday: isToday(date),
           isSelected: isSameDay(date, selectedDate),
-          isDisabled: Boolean((minDate && date < minDate) || (maxDate && date > maxDate)),
+          isDisabled: Boolean((minDate && date < minDate) || (maxDate && date > maxDate) || isDateDisabled?.(date)),
         });
       }
       return result;
-    }, [anchor, viewMode, selectedDate, minDate, maxDate]);
+    }, [anchor, viewMode, selectedDate, minDate, maxDate, isDateDisabled]);
 
     // Narrow weekday initials in locale order (S M T W T F S)
     const weekdayInitials = React.useMemo(() => {

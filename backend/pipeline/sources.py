@@ -76,6 +76,7 @@ SLA_MAX_ERR_M = 0.05  # DUACS err_sla stated uncertainty, metres
 
 ARGO_INDEX_URL = "https://data-argo.ifremer.fr/ar_index_global_prof.txt"
 ARGO_DAC_BASE_URL = "https://data-argo.ifremer.fr/dac/"
+ARGO_DOWNLOAD_THREADS = 16  # small profile files, I/O bound
 ARGO_GOOD_QC_FLAGS = {"1", "2"}
 ARGO_ADJUSTED_MODES = {"A", "D"}
 ARGO_DEPTH_TOL_M = 10.0  # require a sample within this many metres above and below a std depth

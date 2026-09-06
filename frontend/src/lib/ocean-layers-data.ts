@@ -8,9 +8,9 @@ export interface OceanDepthLayer {
   tempMax: number;
   rmsePoseidon: number;
   rmseClimatology: number;
-  rmseUNet: number;
+  rmseGbm: number;
   correlation: number;
-  anomaly: number;
+  bias: number; // model mean bias at this depth, filled from report.json
   isD20Isotherm?: boolean;
   isMLD?: boolean;
   thermalColors: {
@@ -32,9 +32,9 @@ export const OCEAN_DEPTH_LAYERS: OceanDepthLayer[] = [
     tempMax: 31.4,
     rmsePoseidon: 0.28,
     rmseClimatology: 0.82,
-    rmseUNet: 0.44,
+    rmseGbm: 0.44,
     correlation: 0.98,
-    anomaly: +0.6,
+    bias: +0.6,
     thermalColors: {
       arabianSea: "#e0633b",
       equator: "#f28b44",
@@ -52,9 +52,9 @@ export const OCEAN_DEPTH_LAYERS: OceanDepthLayer[] = [
     tempMax: 31.1,
     rmsePoseidon: 0.29,
     rmseClimatology: 0.84,
-    rmseUNet: 0.45,
+    rmseGbm: 0.45,
     correlation: 0.98,
-    anomaly: +0.5,
+    bias: +0.5,
     thermalColors: {
       arabianSea: "#dd5f36",
       equator: "#ee843e",
@@ -72,9 +72,9 @@ export const OCEAN_DEPTH_LAYERS: OceanDepthLayer[] = [
     tempMax: 30.9,
     rmsePoseidon: 0.30,
     rmseClimatology: 0.85,
-    rmseUNet: 0.46,
+    rmseGbm: 0.46,
     correlation: 0.97,
-    anomaly: +0.5,
+    bias: +0.5,
     thermalColors: {
       arabianSea: "#d65a32",
       equator: "#e87e38",
@@ -92,9 +92,9 @@ export const OCEAN_DEPTH_LAYERS: OceanDepthLayer[] = [
     tempMax: 30.3,
     rmsePoseidon: 0.32,
     rmseClimatology: 0.89,
-    rmseUNet: 0.49,
+    rmseGbm: 0.49,
     correlation: 0.97,
-    anomaly: +0.4,
+    bias: +0.4,
     isMLD: true,
     thermalColors: {
       arabianSea: "#cb532d",
@@ -113,9 +113,9 @@ export const OCEAN_DEPTH_LAYERS: OceanDepthLayer[] = [
     tempMax: 29.5,
     rmsePoseidon: 0.35,
     rmseClimatology: 0.94,
-    rmseUNet: 0.53,
+    rmseGbm: 0.53,
     correlation: 0.96,
-    anomaly: +0.3,
+    bias: +0.3,
     thermalColors: {
       arabianSea: "#bd4f2e",
       equator: "#ce6832",
@@ -133,9 +133,9 @@ export const OCEAN_DEPTH_LAYERS: OceanDepthLayer[] = [
     tempMax: 28.2,
     rmsePoseidon: 0.41,
     rmseClimatology: 1.08,
-    rmseUNet: 0.60,
+    rmseGbm: 0.60,
     correlation: 0.95,
-    anomaly: +0.2,
+    bias: +0.2,
     thermalColors: {
       arabianSea: "#9d4b39",
       equator: "#b45938",
@@ -153,9 +153,9 @@ export const OCEAN_DEPTH_LAYERS: OceanDepthLayer[] = [
     tempMax: 26.1,
     rmsePoseidon: 0.49,
     rmseClimatology: 1.25,
-    rmseUNet: 0.71,
+    rmseGbm: 0.71,
     correlation: 0.93,
-    anomaly: -0.1,
+    bias: -0.1,
     thermalColors: {
       arabianSea: "#69555c",
       equator: "#815e61",
@@ -173,9 +173,9 @@ export const OCEAN_DEPTH_LAYERS: OceanDepthLayer[] = [
     tempMax: 23.5,
     rmsePoseidon: 0.52,
     rmseClimatology: 1.42,
-    rmseUNet: 0.78,
+    rmseGbm: 0.78,
     correlation: 0.91,
-    anomaly: -0.3,
+    bias: -0.3,
     isD20Isotherm: true,
     thermalColors: {
       arabianSea: "#386588",
@@ -194,9 +194,9 @@ export const OCEAN_DEPTH_LAYERS: OceanDepthLayer[] = [
     tempMax: 20.8,
     rmsePoseidon: 0.48,
     rmseClimatology: 1.35,
-    rmseUNet: 0.72,
+    rmseGbm: 0.72,
     correlation: 0.92,
-    anomaly: -0.4,
+    bias: -0.4,
     thermalColors: {
       arabianSea: "#276295",
       equator: "#3271a7",
@@ -214,9 +214,9 @@ export const OCEAN_DEPTH_LAYERS: OceanDepthLayer[] = [
     tempMax: 18.2,
     rmsePoseidon: 0.42,
     rmseClimatology: 1.22,
-    rmseUNet: 0.65,
+    rmseGbm: 0.65,
     correlation: 0.93,
-    anomaly: -0.3,
+    bias: -0.3,
     thermalColors: {
       arabianSea: "#1c5b9e",
       equator: "#2468af",
@@ -234,9 +234,9 @@ export const OCEAN_DEPTH_LAYERS: OceanDepthLayer[] = [
     tempMax: 15.6,
     rmsePoseidon: 0.36,
     rmseClimatology: 1.05,
-    rmseUNet: 0.56,
+    rmseGbm: 0.56,
     correlation: 0.94,
-    anomaly: -0.2,
+    bias: -0.2,
     thermalColors: {
       arabianSea: "#154f9a",
       equator: "#1c5ca9",
@@ -254,9 +254,9 @@ export const OCEAN_DEPTH_LAYERS: OceanDepthLayer[] = [
     tempMax: 12.9,
     rmsePoseidon: 0.28,
     rmseClimatology: 0.85,
-    rmseUNet: 0.44,
+    rmseGbm: 0.44,
     correlation: 0.95,
-    anomaly: -0.1,
+    bias: -0.1,
     thermalColors: {
       arabianSea: "#124388",
       equator: "#184f98",
@@ -274,9 +274,9 @@ export const OCEAN_DEPTH_LAYERS: OceanDepthLayer[] = [
     tempMax: 9.9,
     rmsePoseidon: 0.22,
     rmseClimatology: 0.68,
-    rmseUNet: 0.35,
+    rmseGbm: 0.35,
     correlation: 0.96,
-    anomaly: +0.0,
+    bias: +0.0,
     thermalColors: {
       arabianSea: "#0e3474",
       equator: "#133f84",
@@ -294,9 +294,9 @@ export const OCEAN_DEPTH_LAYERS: OceanDepthLayer[] = [
     tempMax: 8.0,
     rmsePoseidon: 0.18,
     rmseClimatology: 0.54,
-    rmseUNet: 0.28,
+    rmseGbm: 0.28,
     correlation: 0.97,
-    anomaly: +0.1,
+    bias: +0.1,
     thermalColors: {
       arabianSea: "#0a265d",
       equator: "#0e2f6d",
@@ -314,9 +314,9 @@ export const OCEAN_DEPTH_LAYERS: OceanDepthLayer[] = [
     tempMax: 6.1,
     rmsePoseidon: 0.15,
     rmseClimatology: 0.45,
-    rmseUNet: 0.24,
+    rmseGbm: 0.24,
     correlation: 0.98,
-    anomaly: +0.0,
+    bias: +0.0,
     thermalColors: {
       arabianSea: "#071c48",
       equator: "#0a2254",

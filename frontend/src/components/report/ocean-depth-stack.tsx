@@ -21,12 +21,16 @@ type MetricMode = "temp" | "rmse" | "anomaly";
 export interface OceanDepthStackProps {
   selectedIndex?: number;
   onSelectIndex?: (index: number) => void;
+  /** Per-depth skill; defaults to the static descriptions when no report is loaded. */
+  layers?: OceanDepthLayer[];
 }
 
 export function OceanDepthStack({
   selectedIndex: controlledIndex,
   onSelectIndex,
+  layers: layersProp,
 }: OceanDepthStackProps = {}) {
+  const layers = layersProp ?? OCEAN_DEPTH_LAYERS;
   const prefersReducedMotion = useReducedMotion();
   const [internalIndex, setInternalIndex] = useState<number>(7); // Default to 100m (thermocline / D20)
   const isControlled = controlledIndex !== undefined;
@@ -49,13 +53,14 @@ export function OceanDepthStack({
   const [metricMode, setMetricMode] = useState<MetricMode>("temp");
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
 
-  const selectedLayer = OCEAN_DEPTH_LAYERS[selectedIndex];
+  const selectedLayer = layers[selectedIndex];
+  const rmseScale = Math.max(1.5, selectedLayer.rmsePoseidon, selectedLayer.rmseGbm, selectedLayer.rmseClimatology);
 
   // Auto-play animation: step through layers sequentially
   useEffect(() => {
     if (!isPlaying) return;
     const interval = window.setInterval(() => {
-      setSelectedIndex((prev) => (prev + 1) % OCEAN_DEPTH_LAYERS.length);
+      setSelectedIndex((prev) => (prev + 1) % layers.length);
     }, 1200);
     return () => window.clearInterval(interval);
   }, [isPlaying]);
@@ -88,12 +93,12 @@ export function OceanDepthStack({
         badgeText: `±${layer.rmsePoseidon.toFixed(2)}°C`,
       };
     }
-    // Anomaly mode (-0.4°C to +0.6°C)
-    const isPositive = layer.anomaly >= 0;
+    // Bias mode: the model's mean error at this depth
+    const isPositive = layer.bias >= 0;
     return {
       fill: isPositive ? "rgba(249, 115, 22, 0.65)" : "rgba(14, 165, 233, 0.65)",
       stroke: "rgba(255, 255, 255, 0.4)",
-      badgeText: `${isPositive ? "+" : ""}${layer.anomaly.toFixed(1)}°C`,
+      badgeText: `${isPositive ? "+" : ""}${layer.bias.toFixed(2)}°C`,
     };
   }, [metricMode]);
 
@@ -109,7 +114,7 @@ export function OceanDepthStack({
       };
     }
 
-    const total = OCEAN_DEPTH_LAYERS.length;
+    const total = layers.length;
     // Center the z-offset around the middle layer (index 7, 100m D20)
     const spacing = 11;
     const centerIndex = (total - 1) / 2;
@@ -211,7 +216,7 @@ export function OceanDepthStack({
           {([
             { id: "temp" as MetricMode, label: "Temperature", icon: Thermometer },
             { id: "rmse" as MetricMode, label: "RMSE Skill", icon: BarChart2 },
-            { id: "anomaly" as MetricMode, label: "Anomaly", icon: TrendingUp },
+            { id: "anomaly" as MetricMode, label: "Bias", icon: TrendingUp },
           ] as const).map((tab) => {
             const Icon = tab.icon;
             const active = metricMode === tab.id;
@@ -289,7 +294,7 @@ export function OceanDepthStack({
                     : "rotateX(58deg) rotateZ(-28deg) translateY(-22px)",
               }}
             >
-              {OCEAN_DEPTH_LAYERS.map((layer, index) => {
+              {layers.map((layer, index) => {
                 const isSelected = index === selectedIndex;
                 const layerStyle = getLayerColor(layer);
                 const transformStyles = getLayerTransform(index);
@@ -421,14 +426,14 @@ export function OceanDepthStack({
                 {/* Active Progress Fill */}
                 <motion.div
                   className="h-full bg-gradient-to-r from-cyan-500/50 via-cyan-400 to-cyan-300 shadow-[0_0_12px_rgba(34,211,238,0.7)]"
-                  style={{ width: `${(selectedIndex / (OCEAN_DEPTH_LAYERS.length - 1)) * 100}%` }}
+                  style={{ width: `${(selectedIndex / (layers.length - 1)) * 100}%` }}
                   transition={prefersReducedMotion ? { duration: 0 } : { type: "spring", stiffness: 350, damping: 28 }}
                 />
               </div>
 
               {/* Discrete Tick Nodes for all 15 depths */}
               <div className="pointer-events-none absolute inset-x-0 flex items-center justify-between px-1">
-                {OCEAN_DEPTH_LAYERS.map((layer, idx) => (
+                {layers.map((layer, idx) => (
                   <div
                     key={layer.depth}
                     className={`size-1.5 rounded-full transition-all duration-200 ${
@@ -444,7 +449,7 @@ export function OceanDepthStack({
               <motion.div
                 className="pointer-events-none absolute top-1/2 -translate-y-1/2 size-5 -ml-2.5 rounded-full border-2 border-white bg-gradient-to-tr from-cyan-400 to-cyan-200 shadow-[0_0_16px_rgba(34,211,238,0.9),0_2px_6px_rgba(0,0,0,0.5)] flex items-center justify-center z-10"
                 style={{
-                  left: `${(selectedIndex / (OCEAN_DEPTH_LAYERS.length - 1)) * 100}%`,
+                  left: `${(selectedIndex / (layers.length - 1)) * 100}%`,
                 }}
                 transition={prefersReducedMotion ? { duration: 0 } : { type: "spring", stiffness: 450, damping: 30 }}
               >
@@ -455,7 +460,7 @@ export function OceanDepthStack({
               <input
                 type="range"
                 min={0}
-                max={OCEAN_DEPTH_LAYERS.length - 1}
+                max={layers.length - 1}
                 step={1}
                 value={selectedIndex}
                 onChange={(e) => handleLayerClick(Number(e.target.value))}
@@ -523,7 +528,7 @@ export function OceanDepthStack({
                     ±{selectedLayer.rmsePoseidon.toFixed(2)} °C
                   </p>
                   <span className="text-[10px] text-emerald-400 font-medium">
-                    +{skillGain}% vs Climatology
+                    {skillGain >= 0 ? "+" : ""}{skillGain}% vs Climatology
                   </span>
                 </div>
               </div>
@@ -532,7 +537,7 @@ export function OceanDepthStack({
               <div className="flex flex-col gap-2 rounded-xl border border-white/10 bg-white/[0.02] p-3">
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-white/60">Benchmark Skill vs Baselines</span>
-                  <span className="font-mono text-[10px] text-cyan-300">Argo 2019–2020</span>
+                  <span className="font-mono text-[10px] text-cyan-300">GLORYS 2019–2020</span>
                 </div>
 
                 {/* Poseidon bar */}
@@ -544,21 +549,21 @@ export function OceanDepthStack({
                   <div className="h-2 w-full overflow-hidden rounded-full bg-white/10">
                     <div
                       className="h-full rounded-full bg-gradient-to-r from-cyan-400 to-blue-500"
-                      style={{ width: `${Math.min(100, (selectedLayer.rmsePoseidon / 1.5) * 100)}%` }}
+                      style={{ width: `${Math.min(100, (selectedLayer.rmsePoseidon / rmseScale) * 100)}%` }}
                     />
                   </div>
                 </div>
 
-                {/* U-Net bar */}
+                {/* GBM bar */}
                 <div className="flex flex-col gap-1">
                   <div className="flex justify-between text-[10px] font-mono">
-                    <span className="text-white/50">U-Net Baseline</span>
-                    <span className="text-white/60">{selectedLayer.rmseUNet.toFixed(2)}°C</span>
+                    <span className="text-white/50">GBM baseline</span>
+                    <span className="text-white/60">{selectedLayer.rmseGbm.toFixed(2)}°C</span>
                   </div>
                   <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/10">
                     <div
                       className="h-full rounded-full bg-white/30"
-                      style={{ width: `${Math.min(100, (selectedLayer.rmseUNet / 1.5) * 100)}%` }}
+                      style={{ width: `${Math.min(100, (selectedLayer.rmseGbm / rmseScale) * 100)}%` }}
                     />
                   </div>
                 </div>
@@ -572,20 +577,20 @@ export function OceanDepthStack({
                   <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/10">
                     <div
                       className="h-full rounded-full bg-red-400/40"
-                      style={{ width: `${Math.min(100, (selectedLayer.rmseClimatology / 1.5) * 100)}%` }}
+                      style={{ width: `${Math.min(100, (selectedLayer.rmseClimatology / rmseScale) * 100)}%` }}
                     />
                   </div>
                 </div>
               </div>
 
-              {/* Correlation and Anomaly Pill */}
+              {/* Correlation and bias pill */}
               <div className="flex items-center justify-between border-t border-white/10 pt-2 text-xs font-mono">
                 <span className="text-white/50">Correlation:</span>
                 <span className="font-semibold text-emerald-400">R = {selectedLayer.correlation.toFixed(2)}</span>
                 <span className="text-white/30">|</span>
-                <span className="text-white/50">Anomaly:</span>
-                <span className={selectedLayer.anomaly >= 0 ? "text-amber-300" : "text-sky-300"}>
-                  {selectedLayer.anomaly >= 0 ? "+" : ""}{selectedLayer.anomaly.toFixed(1)} °C
+                <span className="text-white/50">Bias:</span>
+                <span className={selectedLayer.bias >= 0 ? "text-amber-300" : "text-sky-300"}>
+                  {selectedLayer.bias >= 0 ? "+" : ""}{selectedLayer.bias.toFixed(2)} °C
                 </span>
               </div>
             </div>

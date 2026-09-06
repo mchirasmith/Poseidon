@@ -59,10 +59,13 @@ def _sst_ds(year: int, month: int, has_data: bool) -> xr.Dataset:
 def _sss_ds(year: int, month: int, has_data: bool) -> xr.Dataset:
     lat, lon = _raw_axis(0.125)
     time = _month_time(year, month)
-    shape = (len(time), len(lat), len(lon))
-    sos = (34.5 + 0.1 * np.cos(np.radians(lon))[None, None, :]) if has_data else np.nan
+    shape = (len(time), 1, len(lat), len(lon))  # the real product keeps a size-1 depth axis at 0 m
+    sos = (34.5 + 0.1 * np.cos(np.radians(lon))[None, None, None, :]) if has_data else np.nan
     sos = np.broadcast_to(sos, shape).astype(np.float32) if has_data else np.full(shape, np.nan, dtype=np.float32)
-    return xr.Dataset({"sos": (("time", "latitude", "longitude"), sos)}, coords={"time": time, "latitude": lat, "longitude": lon})
+    return xr.Dataset(
+        {"sos": (("time", "depth", "latitude", "longitude"), sos)},
+        coords={"time": time, "depth": [0.0], "latitude": lat, "longitude": lon},
+    )
 
 
 def _sla_ds(year: int, month: int, has_data: bool) -> xr.Dataset:
@@ -127,7 +130,8 @@ def _global_cur_ds(year: int, month: int) -> xr.Dataset:
     """OSCAR-style file: latitude/longitude dims, descending latitude, uncropped extent."""
     lat = np.arange(35.0, -0.001, -_PODAAC_STEP_DEG)
     lon = np.arange(40.0, 110.001, _PODAAC_STEP_DEG)
-    time = _month_time(year, month)
+    days = _month_time(year, month)
+    time = xr.cftime_range(str(days[0].date()), periods=len(days), freq="D", calendar="julian")  # OSCAR's calendar
     shape = (len(time), len(lat), len(lon))
     return xr.Dataset(
         {
@@ -303,7 +307,7 @@ def test_real_assembly_resumes_without_reassembling(data_dir: Path, monkeypatch)
 
 
 def test_pass1_streaming_matches_in_memory_fit(data_dir: Path):
-    """run._fit_stats_streaming's chunked climatology/stats match a single-shot in-memory fit."""
+    """run._assemble's chunked, parallel climatology/stats match a single-shot in-memory fit."""
     zarr_path = run.assemble_real(data_dir, ["sst"], YEAR, YEAR, GRID, download_workers=1)
     g = zarr.open_consolidated(str(zarr_path))
 

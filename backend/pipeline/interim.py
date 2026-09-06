@@ -26,7 +26,10 @@ def _load_sst(ds: xr.Dataset) -> xr.DataArray:
 
 
 def _load_sss(ds: xr.Dataset) -> xr.DataArray:
-    return qc.range_check(ds["sos"], "sss").rename("sss")
+    sos = ds["sos"]
+    if "depth" in sos.dims:  # the Copernicus surface salinity keeps a size-1 depth axis at 0 m
+        sos = sos.squeeze("depth", drop=True)
+    return qc.range_check(sos, "sss").rename("sss")
 
 
 def _load_sla(ds: xr.Dataset) -> xr.DataArray:
@@ -65,6 +68,8 @@ def regrid_month(name: str, raw_path: Path, interim_dir: Path, month_key: str, g
 
     with xr.open_dataset(raw_path) as raw:
         ds = _std_dims(raw.load())
+        if isinstance(ds.indexes.get("time"), xr.CFTimeIndex):  # OSCAR currents use a Julian calendar
+            ds = ds.assign_coords(time=ds.indexes["time"].to_datetimeindex())
         if name in _SCALAR_LOADERS:
             da = _SCALAR_LOADERS[name](ds)
             out = regrid.to_grid(da, product.source_step_deg, grid.lat, grid.lon).to_dataset()

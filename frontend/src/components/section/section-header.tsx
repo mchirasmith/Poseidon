@@ -9,15 +9,14 @@ import type { TransectPreset } from "@/lib/section";
 
 interface SectionHeaderProps {
   date: string;
+  /** Days with precomputed fields in the static bundle, ascending ISO dates. */
+  availableDates: string[];
+  dayLabel?: string;
   preset?: TransectPreset;
   totalDistanceKm: number;
   isLoading?: boolean;
   onDateChange: (date: string) => void;
 }
-
-/** Locked test-set window the section can be reconstructed for. */
-const MIN_DATE = new Date(2019, 0, 1);
-const MAX_DATE = new Date(2020, 11, 31);
 
 /** Parses `YYYY-MM-DD` in local time so day comparisons never shift across timezones. */
 function parseISODate(value: string): Date {
@@ -27,6 +26,8 @@ function parseISODate(value: string): Date {
 
 export function SectionHeader({
   date,
+  availableDates,
+  dayLabel,
   preset,
   totalDistanceKm,
   onDateChange,
@@ -34,12 +35,16 @@ export function SectionHeader({
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const pickerRef = useRef<HTMLDivElement | null>(null);
   const selectedDate = useMemo(() => parseISODate(date), [date]);
+  const availableSet = useMemo(() => new Set(availableDates), [availableDates]);
+  const minDate = useMemo(() => parseISODate(availableDates[0] ?? "2019-01-01"), [availableDates]);
+  const maxDate = useMemo(() => parseISODate(availableDates[availableDates.length - 1] ?? "2020-12-31"), [availableDates]);
+  const isDateDisabled = useCallback((d: Date) => !availableSet.has(format(d, "yyyy-MM-dd")), [availableSet]);
 
-  const stepDate = (days: number) => {
-    const d = parseISODate(date);
-    d.setDate(d.getDate() + days);
-    const clamped = d < MIN_DATE ? MIN_DATE : d > MAX_DATE ? MAX_DATE : d;
-    onDateChange(format(clamped, "yyyy-MM-dd"));
+  /** Previous or next bundled day; the arrows never land on a day without data. */
+  const stepDate = (direction: number) => {
+    const idx = availableDates.indexOf(date);
+    const next = availableDates[(idx < 0 ? 0 : idx) + direction];
+    if (next) onDateChange(next);
   };
 
   const handleDateSelect = useCallback(
@@ -82,6 +87,7 @@ export function SectionHeader({
         <div>
           <p className="font-mono text-xs uppercase tracking-[0.22em] text-cyan-200/80">
             Poseidon / section · {preset?.name || "Custom Transect"} ({totalDistanceKm} km)
+            {dayLabel ? ` · ${dayLabel}` : ""}
           </p>
           <h1 className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl text-white">
             Ocean vertical section
@@ -95,7 +101,7 @@ export function SectionHeader({
           <button
             type="button"
             onClick={() => stepDate(-1)}
-            aria-label="Previous day"
+            aria-label="Previous curated day"
             className="p-1.5 text-white/70 hover:text-white rounded-lg hover:bg-white/10 transition-colors"
           >
             <ChevronLeft size={16} />
@@ -118,7 +124,7 @@ export function SectionHeader({
           <button
             type="button"
             onClick={() => stepDate(1)}
-            aria-label="Next day"
+            aria-label="Next curated day"
             className="p-1.5 text-white/70 hover:text-white rounded-lg hover:bg-white/10 transition-colors"
           >
             <ChevronRight size={16} />
@@ -131,8 +137,9 @@ export function SectionHeader({
             aria-label="Section date picker"
             selectedDate={selectedDate}
             onDateSelect={handleDateSelect}
-            minDate={MIN_DATE}
-            maxDate={MAX_DATE}
+            minDate={minDate}
+            maxDate={maxDate}
+            isDateDisabled={isDateDisabled}
             className="absolute right-0 top-full z-50 mt-2 w-[340px]"
           />
         )}
