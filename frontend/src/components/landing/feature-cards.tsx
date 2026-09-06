@@ -28,7 +28,7 @@ const features: Feature[] = [
   },
   {
     title: "3D Depth Stack",
-    summary: "Interactive peeling of 15 depth layers (0m to 1000m) with live point temperature profile extraction.",
+    summary: "Navigate a compact 15-layer depth structure (0 m to 1000 m) and inspect the selected slice.",
     detail: "Explore the planned 15-layer subsurface reconstruction, from the surface to 1000m, and inspect a live point temperature profile.",
     action: "Open Explorer",
     icon: Layers,

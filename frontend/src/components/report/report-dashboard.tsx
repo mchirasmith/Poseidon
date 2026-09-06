@@ -71,7 +71,7 @@ function TableShell({ title, description, columns }: { title: string; descriptio
 
 export function ReportDashboard() {
   return (
-    <main className="min-h-screen px-4 py-5 text-white sm:px-6 lg:px-8">
+    <main className="min-h-screen px-4 pb-5 pt-24 text-white sm:px-6 lg:px-8">
       <div className="mx-auto max-w-7xl">
         <ReportHeader />
         <section className="mt-8 space-y-6" aria-labelledby="report-overview">

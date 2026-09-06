@@ -7,7 +7,6 @@ import {
   Layers, 
   Eye, 
   Compass, 
-  Maximize2, 
   Thermometer, 
   BarChart2, 
   TrendingUp,
@@ -15,7 +14,7 @@ import {
 } from "lucide-react";
 import { OCEAN_DEPTH_LAYERS, type OceanDepthLayer } from "@/lib/ocean-layers-data";
 
-type ViewMode = "stack" | "exploded" | "flat";
+type ViewMode = "stack" | "flat";
 type MetricMode = "temp" | "rmse" | "anomaly";
 
 export function OceanDepthStack() {
@@ -23,7 +22,6 @@ export function OceanDepthStack() {
   const [viewMode, setViewMode] = useState<ViewMode>("stack");
   const [metricMode, setMetricMode] = useState<MetricMode>("temp");
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
-  const [peelAbove, setPeelAbove] = useState<boolean>(true);
 
   const selectedLayer = OCEAN_DEPTH_LAYERS[selectedIndex];
 
@@ -87,14 +85,13 @@ export function OceanDepthStack() {
 
     const total = OCEAN_DEPTH_LAYERS.length;
     // Layer 0 at top, Layer 14 at bottom
-    const spacing = viewMode === "exploded" ? 22 : 12;
+    const spacing = 12;
     const zOffset = (total - 1 - index) * spacing;
     const isSelected = index === selectedIndex;
     const isAbove = index < selectedIndex;
 
     let opacity = 0.85;
     if (isSelected) opacity = 1;
-    else if (isAbove && peelAbove) opacity = 0.15;
     else if (isAbove) opacity = 0.45;
 
     return {
@@ -102,7 +99,7 @@ export function OceanDepthStack() {
       opacity,
       zIndex: isSelected ? 30 : index,
     };
-  }, [viewMode, selectedIndex, peelAbove]);
+  }, [viewMode, selectedIndex]);
 
   const skillGain = useMemo(() => {
     const baseline = selectedLayer.rmseClimatology;
@@ -127,18 +124,6 @@ export function OceanDepthStack() {
           >
             <Layers size={13} />
             <span>3D Stack</span>
-          </button>
-          <button
-            onClick={() => setViewMode("exploded")}
-            className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${
-              viewMode === "exploded"
-                ? "bg-cyan-500/20 text-cyan-200 shadow-sm border border-cyan-400/30"
-                : "text-white/60 hover:text-white hover:bg-white/5"
-            }`}
-            type="button"
-          >
-            <Maximize2 size={13} />
-            <span>Exploded (Peel)</span>
           </button>
           <button
             onClick={() => setViewMode("flat")}
@@ -194,29 +179,15 @@ export function OceanDepthStack() {
           </button>
         </div>
 
-        {/* Right: Auto-play & Peeling toggle */}
+        {/* Right: Auto-play */}
         <div className="flex items-center gap-2">
-          {viewMode !== "flat" && (
-            <button
-              onClick={() => setPeelAbove((prev) => !prev)}
-              className={`rounded-lg border px-3 py-1.5 text-xs font-mono transition-all ${
-                peelAbove
-                  ? "border-cyan-400/30 bg-cyan-500/10 text-cyan-200"
-                  : "border-white/15 bg-white/5 text-white/50"
-              }`}
-              type="button"
-              title="Fade upper layers when inspecting deeper layers"
-            >
-              Peel Above: {peelAbove ? "ON" : "OFF"}
-            </button>
-          )}
           <button
             onClick={() => setIsPlaying((prev) => !prev)}
             className="flex items-center gap-1.5 rounded-lg border border-cyan-400/30 bg-cyan-500/15 px-3 py-1.5 text-xs font-semibold text-cyan-100 shadow-sm transition hover:bg-cyan-500/25"
             type="button"
           >
             {isPlaying ? <Pause size={13} /> : <Play size={13} />}
-            <span>{isPlaying ? "Pause" : "Auto Peel"}</span>
+            <span>{isPlaying ? "Pause" : "Auto advance"}</span>
           </button>
         </div>
       </div>
