@@ -7,19 +7,12 @@ export default function Home() {
     <main className="flex min-h-screen w-full flex-1 flex-col items-center justify-center px-6 py-24 font-sans">
       <div className="flex flex-col items-center text-center max-w-5xl mx-auto space-y-8 pointer-events-none">
         
-        {/* Badge */}
-        <div className="flex items-center gap-3 justify-center">
-          <div className="h-[2px] w-8 bg-[#0D47A1]" aria-hidden="true" />
-          <span className="font-mono text-xs tracking-[0.35em] text-[#0D47A1] uppercase font-semibold">
-            SIH 2026 • PS SIH26066 • INCOIS
-          </span>
-          <div className="h-[2px] w-8 bg-[#0D47A1]" aria-hidden="true" />
-        </div>
-
         {/* Title & Tagline */}
         <div className="space-y-4">
-          <h1 className="select-none text-6xl font-bold leading-[0.9] tracking-tighter text-[#0D47A1] uppercase drop-shadow-sm md:text-8xl lg:text-[110px]">POSEIDON</h1>
-          <p className="mx-auto max-w-2xl text-lg font-medium leading-relaxed text-slate-700 md:text-xl">
+          <h1 className="select-none text-6xl font-bold leading-[0.9] tracking-tighter text-[#0070c0] uppercase drop-shadow-md md:text-8xl lg:text-[110px]">
+            POSEIDON
+          </h1>
+          <p className="mx-auto max-w-2xl text-lg font-medium leading-relaxed text-neutral-200 drop-shadow md:text-xl">
             Deep Ocean Temperature Intelligence. AI-driven 3D subsurface temperature reconstruction across 15 depth layers using only surface satellite observations.
           </p>
         </div>
@@ -36,7 +29,7 @@ export default function Home() {
 
           <Link
             href="/report"
-            className="flex items-center gap-2 rounded-full border border-white/20 bg-[#0D47A1]/90 px-8 py-4 text-sm font-semibold tracking-wide text-white shadow-lg shadow-[#0D47A1]/20 transition-all duration-300 hover:scale-[1.03] hover:bg-[#0D47A1]"
+            className="flex items-center gap-2 rounded-full border border-white/20 bg-white/[0.06] px-8 py-4 text-sm font-semibold tracking-wide text-white shadow-lg backdrop-blur-xl transition-all duration-300 hover:scale-[1.03] hover:bg-white/[0.12] hover:border-white/30"
           >
             <BarChart3 size={16} className="text-cyan-400" />
             <span>VALIDATION REPORT</span>
