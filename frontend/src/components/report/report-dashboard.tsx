@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { ArrowLeft, Waves } from "lucide-react";
 import { MetricShell, ReportPanel } from "@/components/report/report-primitives";
 import { OceanDepthStack } from "@/components/report/ocean-depth-stack";
 import { OCEAN_DEPTH_LAYERS, type OceanDepthLayer } from "@/lib/ocean-layers-data";
+import { TrackShiftSpinner } from "@/components/ui/trackshift-spinner";
 
 function ReportHeader({ layer }: { layer: OceanDepthLayer }) {
   return (
@@ -188,8 +189,14 @@ function TableShell({
 }
 
 export function ReportDashboard() {
+  const [isLoading, setIsLoading] = useState(true);
   const [selectedIndex, setSelectedIndex] = useState<number>(7); // Default to 100m
   const selectedLayer = OCEAN_DEPTH_LAYERS[selectedIndex];
+
+  useEffect(() => {
+    const timer = setTimeout(() => setIsLoading(false), 700);
+    return () => clearTimeout(timer);
+  }, []);
 
   const dynamicMetrics = useMemo(() => {
     const baseline = selectedLayer.rmseClimatology;
@@ -323,7 +330,15 @@ export function ReportDashboard() {
   );
 
   return (
-    <main className="relative min-h-screen px-4 pb-8 pt-6 text-white sm:px-6 sm:pt-8 lg:px-8">
+    <>
+      <TrackShiftSpinner
+        isLoading={isLoading}
+        title="Loading Validation Report"
+        subtitle="Fetching locked test-set benchmarks (2019–2020) and Argo matchup stats..."
+        isFullPage={true}
+      />
+
+      <main className="relative min-h-screen px-4 pb-8 pt-6 text-white sm:px-6 sm:pt-8 lg:px-8">
       <div className="relative mx-auto max-w-7xl">
         <ReportHeader layer={selectedLayer} />
         <section className="mt-5">
@@ -360,5 +375,6 @@ export function ReportDashboard() {
         </footer>
       </div>
     </main>
+    </>
   );
 }

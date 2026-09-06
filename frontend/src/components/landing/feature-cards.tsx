@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, BarChart3, Layers, type LucideIcon } from "lucide-react";
+import { ArrowRight, BarChart3, Layers, Spline, type LucideIcon } from "lucide-react";
 import { useCallback, useState } from "react";
 import { FeatureModal } from "@/components/ui/feature-modal";
 
@@ -39,10 +39,12 @@ const features: Feature[] = [
   {
     title: "Ocean Section",
     summary: "Slice across custom ocean coordinates to view thermocline depth, D20 contour, and mixed layer depth.",
-    detail: "Draw a planned ocean transect across custom coordinates to inspect thermocline depth, D20 contours, and mixed-layer depth.",
+    detail: "Draw an interactive ocean transect across custom coordinates or presets to inspect thermocline depth, D20 contours, and mixed-layer depth.",
     action: "Draw Section",
-    icon: Layers,
-    accent: "text-cyan-400 border-cyan-500/20 bg-cyan-500/10",
+    icon: Spline,
+    accent: "text-emerald-400 border-emerald-500/20 bg-emerald-500/10",
+    actionHref: "/section",
+    modalActionLabel: "Open ocean section",
   },
 ];
 

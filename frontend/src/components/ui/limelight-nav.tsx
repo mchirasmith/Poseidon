@@ -3,13 +3,14 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
-import { Compass, Home, ScrollText } from "lucide-react";
+import { Compass, Home, ScrollText, Spline } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const navigationItems = [
   { href: "/", label: "Home", icon: Home },
   { href: "/report", label: "Validation report", icon: ScrollText },
   { href: "/explore", label: "Ocean explorer", icon: Compass },
+  { href: "/section", label: "Ocean section", icon: Spline },
 ] as const;
 
 /** Shared route navigation with a moving limelight that follows the active page. */
