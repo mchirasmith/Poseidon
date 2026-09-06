@@ -215,7 +215,7 @@ def _finalize_argo(series: dict) -> dict:
             continue
         pred = np.concatenate(d["pred"])
         obs = np.concatenate(d["obs"])
-        mask = np.ones_like(pred, dtype=bool)
+        mask = np.isfinite(pred) & np.isfinite(obs)  # a float over a cell that is dry at depth has no prediction there
         out[name] = {"rmse": M.rmse(pred, obs, mask), "bias": M.bias(pred, obs, mask), "r": M.pearson_r(pred, obs, mask), "n": int(pred.size)}
     return out
 

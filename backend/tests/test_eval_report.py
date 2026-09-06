@@ -50,3 +50,17 @@ def test_report_argo_scatter_has_glorys_baseline(full_artifacts, synthetic_store
     report = json.loads((synthetic_store / "report.json").read_text())
     assert "glorys" in report["argo_scatter"]
     assert report["argo_scatter"]["glorys"]["n"] > 0
+
+
+def test_finalize_argo_ignores_dry_cells():
+    """A float over a cell with no prediction at some depth must not poison the whole statistic."""
+    import numpy as np
+
+    from eval.evaluate import _finalize_argo
+
+    pred = np.array([20.0, np.nan, 10.0], dtype=np.float32)
+    obs = np.array([21.0, 15.0, 9.0], dtype=np.float32)
+    out = _finalize_argo({"lite": {"pred": [pred], "obs": [obs]}})["lite"]
+    assert np.isclose(out["rmse"], 1.0)
+    assert np.isclose(out["bias"], 0.0)
+    assert out["n"] == 3
