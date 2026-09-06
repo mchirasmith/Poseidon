@@ -86,20 +86,51 @@ export function OceanDepthStack() {
     }
 
     const total = OCEAN_DEPTH_LAYERS.length;
-    // Layer 0 at top, Layer 14 at bottom
-    const spacing = 12;
-    const zOffset = (total - 1 - index) * spacing;
+    // Center the z-offset around the middle layer (index 7, 100m D20)
+    const spacing = 11;
+    const centerIndex = (total - 1) / 2;
+    const zOffset = (centerIndex - index) * spacing;
     const isSelected = index === selectedIndex;
-    const isAbove = index < selectedIndex;
 
-    let opacity = 0.85;
-    if (isSelected) opacity = 1;
-    else if (isAbove) opacity = 0.45;
+    let opacity = 0.9;
+    let filter = "none";
+    let pointerEvents: "auto" | "none" = "auto";
+
+    if (isSelected) {
+      opacity = 1;
+      filter = "none";
+    } else if (index < selectedIndex) {
+      // Layers ABOVE the selected layer (going up towards surface 0m)
+      // Progressively increase transparency (lower opacity) and increase blur as we go higher up
+      const stepsAbove = selectedIndex - index;
+      const progress = selectedIndex > 1 ? (stepsAbove - 1) / (selectedIndex - 1) : 0;
+
+      // Opacity drops from ~0.28 down to ~0.06 as we reach the topmost surface layer
+      opacity = Math.max(0.06, 0.28 - progress * 0.22);
+
+      // Blur increases progressively as layers sit further above the focus plane (from 2px to 6px)
+      const blurPx = 2 + progress * 4;
+      filter = `blur(${blurPx.toFixed(1)}px)`;
+
+      // Pass through clicks on highly transparent upper layers so focused layer is easily interactive
+      if (opacity < 0.15) {
+        pointerEvents = "none";
+      }
+    } else {
+      // Layers BELOW the selected layer (deeper ocean abyss)
+      const stepsBelow = index - selectedIndex;
+      const maxBelow = (total - 1) - selectedIndex;
+      const progressBelow = maxBelow > 0 ? stepsBelow / maxBelow : 0;
+      opacity = Math.max(0.68, 0.92 - progressBelow * 0.24);
+      filter = "none";
+    }
 
     return {
       transform: `translateZ(${zOffset}px)`,
       opacity,
-      zIndex: isSelected ? 30 : index,
+      filter,
+      pointerEvents,
+      zIndex: isSelected ? 40 : total - index,
     };
   }, [viewMode, selectedIndex]);
 
@@ -113,8 +144,8 @@ export function OceanDepthStack() {
     <div className="flex flex-col gap-6">
       {/* Top Controls Toolbar */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 pb-4">
-        {/* Left: View Modes (Limelight Navbar) */}
-        <div className="relative inline-flex items-center rounded-2xl border border-white/15 bg-slate-950/60 p-1 shadow-[0_8px_32px_rgba(0,0,0,0.3),inset_0_1px_0_rgba(255,255,255,0.15)] backdrop-blur-2xl">
+        {/* Left: View Modes (Limelight Icon Navbar) */}
+        <div className="relative inline-flex items-center gap-1 rounded-2xl border border-white/15 bg-white/[0.02] p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)] backdrop-blur-xl">
           {([
             { id: "stack" as ViewMode, label: "3D Stack", icon: Layers },
             { id: "flat" as ViewMode, label: "Flat Slice", icon: Eye },
@@ -125,38 +156,34 @@ export function OceanDepthStack() {
               <button
                 key={tab.id}
                 onClick={() => setViewMode(tab.id)}
-                className={`relative z-10 flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-cyan-300 ${
-                  active ? "font-semibold text-cyan-100" : "text-white/60 hover:text-white"
-                }`}
+                title={tab.label}
+                aria-label={tab.label}
+                className="relative z-10 grid size-10 place-items-center rounded-xl outline-none transition-colors focus-visible:ring-2 focus-visible:ring-white/50"
                 type="button"
               >
                 {active && (
-                  <>
-                    <motion.span
-                      aria-hidden="true"
-                      className="pointer-events-none absolute inset-0 rounded-xl border border-cyan-400/40 bg-cyan-500/20 shadow-[inset_0_1px_1px_rgba(255,255,255,0.25),0_0_14px_rgba(34,211,238,0.25)]"
-                      layoutId="limelight-view-pill"
-                      transition={prefersReducedMotion ? { duration: 0 } : { type: "spring", stiffness: 380, damping: 30 }}
-                    />
-                    <motion.span
-                      aria-hidden="true"
-                      className="pointer-events-none absolute inset-x-2 top-0 h-1 rounded-full bg-cyan-200 shadow-[0_12px_18px_rgba(103,232,249,0.85)]"
-                      layoutId="limelight-view-beam"
-                      transition={prefersReducedMotion ? { duration: 0 } : { type: "spring", stiffness: 380, damping: 30 }}
-                    >
-                      <span className="absolute left-[-30%] top-1 h-8 w-[160%] bg-gradient-to-b from-cyan-200/25 to-transparent [clip-path:polygon(10%_100%,28%_0,72%_0,90%_100%)]" />
-                    </motion.span>
-                  </>
+                  <motion.span
+                    aria-hidden="true"
+                    className="pointer-events-none absolute inset-x-1.5 top-0 h-1 rounded-full bg-white shadow-[0_10px_20px_rgba(255,255,255,0.95),0_0_12px_rgba(255,255,255,0.85)]"
+                    layoutId="limelight-view-beam"
+                    transition={prefersReducedMotion ? { duration: 0 } : { type: "spring", stiffness: 380, damping: 30 }}
+                  >
+                    <span className="absolute left-[-30%] top-1 h-8 w-[160%] bg-gradient-to-b from-white/35 via-white/10 to-transparent [clip-path:polygon(10%_100%,28%_0,72%_0,90%_100%)]" />
+                  </motion.span>
                 )}
-                <Icon size={14} className={active ? "text-cyan-200" : "text-white/70"} />
-                <span>{tab.label}</span>
+                <Icon
+                  size={18}
+                  className={active ? "text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.8)]" : "text-white/50 transition-colors hover:text-white/80"}
+                  strokeWidth={active ? 2.2 : 1.8}
+                />
+                <span className="sr-only">{tab.label}</span>
               </button>
             );
           })}
         </div>
 
-        {/* Center: Metric display mode (Limelight Navbar) */}
-        <div className="relative inline-flex items-center rounded-2xl border border-white/15 bg-slate-950/60 p-1 shadow-[0_8px_32px_rgba(0,0,0,0.3),inset_0_1px_0_rgba(255,255,255,0.15)] backdrop-blur-2xl">
+        {/* Center: Metric display mode (Limelight Icon Navbar) */}
+        <div className="relative inline-flex items-center gap-1 rounded-2xl border border-white/15 bg-white/[0.02] p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)] backdrop-blur-xl">
           {([
             { id: "temp" as MetricMode, label: "Temperature", icon: Thermometer },
             { id: "rmse" as MetricMode, label: "RMSE Skill", icon: BarChart2 },
@@ -168,31 +195,27 @@ export function OceanDepthStack() {
               <button
                 key={tab.id}
                 onClick={() => setMetricMode(tab.id)}
-                className={`relative z-10 flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-cyan-300 ${
-                  active ? "font-semibold text-cyan-100" : "text-white/60 hover:text-white"
-                }`}
+                title={tab.label}
+                aria-label={tab.label}
+                className="relative z-10 grid size-10 place-items-center rounded-xl outline-none transition-colors focus-visible:ring-2 focus-visible:ring-white/50"
                 type="button"
               >
                 {active && (
-                  <>
-                    <motion.span
-                      aria-hidden="true"
-                      className="pointer-events-none absolute inset-0 rounded-xl border border-cyan-400/40 bg-cyan-500/20 shadow-[inset_0_1px_1px_rgba(255,255,255,0.25),0_0_14px_rgba(34,211,238,0.25)]"
-                      layoutId="limelight-metric-pill"
-                      transition={prefersReducedMotion ? { duration: 0 } : { type: "spring", stiffness: 380, damping: 30 }}
-                    />
-                    <motion.span
-                      aria-hidden="true"
-                      className="pointer-events-none absolute inset-x-2 top-0 h-1 rounded-full bg-cyan-200 shadow-[0_12px_18px_rgba(103,232,249,0.85)]"
-                      layoutId="limelight-metric-beam"
-                      transition={prefersReducedMotion ? { duration: 0 } : { type: "spring", stiffness: 380, damping: 30 }}
-                    >
-                      <span className="absolute left-[-30%] top-1 h-8 w-[160%] bg-gradient-to-b from-cyan-200/25 to-transparent [clip-path:polygon(10%_100%,28%_0,72%_0,90%_100%)]" />
-                    </motion.span>
-                  </>
+                  <motion.span
+                    aria-hidden="true"
+                    className="pointer-events-none absolute inset-x-1.5 top-0 h-1 rounded-full bg-white shadow-[0_10px_20px_rgba(255,255,255,0.95),0_0_12px_rgba(255,255,255,0.85)]"
+                    layoutId="limelight-metric-beam"
+                    transition={prefersReducedMotion ? { duration: 0 } : { type: "spring", stiffness: 380, damping: 30 }}
+                  >
+                    <span className="absolute left-[-30%] top-1 h-8 w-[160%] bg-gradient-to-b from-white/35 via-white/10 to-transparent [clip-path:polygon(10%_100%,28%_0,72%_0,90%_100%)]" />
+                  </motion.span>
                 )}
-                <Icon size={14} className={active ? "text-cyan-200" : "text-white/70"} />
-                <span>{tab.label}</span>
+                <Icon
+                  size={18}
+                  className={active ? "text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.8)]" : "text-white/50 transition-colors hover:text-white/80"}
+                  strokeWidth={active ? 2.2 : 1.8}
+                />
+                <span className="sr-only">{tab.label}</span>
               </button>
             );
           })}
@@ -214,22 +237,22 @@ export function OceanDepthStack() {
       {/* Main 3D Canvas Stage & Telemetry Panel */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 items-center">
         {/* 3D Depth Stack Stage (8 cols) */}
-        <div className="relative lg:col-span-8 flex min-h-[440px] items-center justify-center overflow-hidden rounded-2xl border border-white/20 bg-black/25 p-6 shadow-[inset_0_1px_1px_rgba(255,255,255,0.15)] backdrop-blur-xl">
+        <div className="relative lg:col-span-8 flex min-h-[480px] items-center justify-center overflow-hidden rounded-2xl border border-white/20 bg-black/25 px-6 pt-12 pb-16 shadow-[inset_0_1px_1px_rgba(255,255,255,0.15)] backdrop-blur-xl">
           {/* Subtle Stage Grid and Coordinate Overlay */}
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(34,211,238,0.06),transparent_70%)]" />
-          <div className="pointer-events-none absolute left-4 top-4 font-mono text-[10px] text-white/40">
+          <div className="pointer-events-none absolute left-5 top-4 font-mono text-[10px] text-white/40">
             <span>BAY OF BENGAL & ARABIAN SEA (5°N–28°N, 45°E–100°E)</span>
           </div>
-          <div className="pointer-events-none absolute right-4 top-4 font-mono text-[10px] text-cyan-300/80">
+          <div className="pointer-events-none absolute right-5 top-4 font-mono text-[10px] text-cyan-300/80">
             <span>15 RECONSTRUCTED DEPTH LAYERS</span>
           </div>
 
           {/* Perspective 3D Container */}
           <div
-            className="relative flex items-center justify-center w-[340px] h-[260px] sm:w-[420px] sm:h-[300px]"
+            className="relative my-auto flex items-center justify-center w-[300px] h-[210px] sm:w-[380px] sm:h-[250px]"
             style={{
-              perspective: "1100px",
-              perspectiveOrigin: "50% 30%",
+              perspective: "1200px",
+              perspectiveOrigin: "50% 48%",
             }}
           >
             <div
@@ -239,7 +262,7 @@ export function OceanDepthStack() {
                 transform:
                   viewMode === "flat"
                     ? "none"
-                    : "rotateX(60deg) rotateZ(-30deg) translateY(-20px)",
+                    : "rotateX(58deg) rotateZ(-28deg) translateY(6px)",
               }}
             >
               {OCEAN_DEPTH_LAYERS.map((layer, index) => {
@@ -255,7 +278,7 @@ export function OceanDepthStack() {
                       ...transformStyles,
                       background: layerStyle.fill,
                     }}
-                    className={`group absolute inset-0 rounded-xl cursor-pointer transition-[opacity,border-color,box-shadow] duration-200 border ${
+                    className={`group absolute inset-0 rounded-xl cursor-pointer transition-[opacity,filter,transform,border-color,box-shadow] duration-300 ease-out border ${
                       isSelected
                         ? "border-cyan-300 ring-2 ring-cyan-400 shadow-[0_0_30px_rgba(34,211,238,0.6)]"
                         : "border-white/20 hover:border-cyan-300/80 hover:ring-1 hover:ring-cyan-300/50 hover:shadow-[0_0_20px_rgba(34,211,238,0.35)]"
@@ -344,27 +367,78 @@ export function OceanDepthStack() {
             </div>
           </div>
 
-          {/* Bottom Stage Depth Quick Jumper / Scrubber */}
-          <div className="pointer-events-auto absolute bottom-3 inset-x-6 flex items-center justify-between gap-2 border-t border-white/10 pt-3">
-            <span className="font-mono text-[10px] text-white/40 shrink-0">Surface (0m)</span>
-            <div className="flex flex-1 items-center justify-between gap-1 overflow-x-auto px-2">
-              {OCEAN_DEPTH_LAYERS.map((layer, idx) => (
-                <button
-                  key={layer.depth}
-                  type="button"
-                  onClick={() => handleLayerClick(idx)}
-                  className={`size-6 rounded-full text-[9px] font-mono transition-all grid place-items-center ${
-                    idx === selectedIndex
-                      ? "bg-cyan-400 text-slate-950 font-bold scale-125 shadow-[0_0_10px_rgba(34,211,238,0.8)]"
-                      : "text-white/50 hover:text-cyan-200 hover:bg-white/10"
-                  }`}
-                  title={`${layer.depth}m - ${layer.tempMean}°C`}
-                >
-                  {layer.depth < 100 ? layer.depth : idx}
-                </button>
-              ))}
+          {/* Bottom Stage Depth Scrollbar / Slider */}
+          <div className="pointer-events-auto absolute bottom-3.5 inset-x-6 flex flex-col gap-2 border-t border-white/10 pt-3">
+            <div className="flex items-center justify-between text-[11px] font-mono">
+              <span className="text-white/40">Surface (0m)</span>
+              <div className="flex items-center gap-2 font-semibold">
+                <span className="text-white/60">Depth:</span>
+                <span className="rounded-md border border-cyan-400/40 bg-cyan-500/20 px-2 py-0.5 font-bold text-cyan-100 shadow-[0_0_10px_rgba(34,211,238,0.3)]">
+                  {selectedLayer.depth} m
+                </span>
+                {selectedLayer.isD20Isotherm && (
+                  <span className="rounded border border-amber-400/40 bg-amber-500/20 px-1.5 py-0.5 text-[9px] text-amber-200">
+                    D20
+                  </span>
+                )}
+                {selectedLayer.isMLD && (
+                  <span className="rounded border border-amber-400/40 bg-amber-500/20 px-1.5 py-0.5 text-[9px] text-amber-200">
+                    MLD
+                  </span>
+                )}
+              </div>
+              <span className="text-white/40">Abyss (1000m)</span>
             </div>
-            <span className="font-mono text-[10px] text-white/40 shrink-0">Abyss (1000m)</span>
+
+            {/* Interactive Smooth Slider Track */}
+            <div className="relative flex items-center w-full h-6">
+              {/* Track Background */}
+              <div className="relative w-full h-2 rounded-full bg-white/10 overflow-hidden shadow-inner">
+                {/* Active Progress Fill */}
+                <motion.div
+                  className="h-full bg-gradient-to-r from-cyan-500/50 via-cyan-400 to-cyan-300 shadow-[0_0_12px_rgba(34,211,238,0.7)]"
+                  style={{ width: `${(selectedIndex / (OCEAN_DEPTH_LAYERS.length - 1)) * 100}%` }}
+                  transition={prefersReducedMotion ? { duration: 0 } : { type: "spring", stiffness: 350, damping: 28 }}
+                />
+              </div>
+
+              {/* Discrete Tick Nodes for all 15 depths */}
+              <div className="pointer-events-none absolute inset-x-0 flex items-center justify-between px-1">
+                {OCEAN_DEPTH_LAYERS.map((layer, idx) => (
+                  <div
+                    key={layer.depth}
+                    className={`size-1.5 rounded-full transition-all duration-200 ${
+                      idx <= selectedIndex
+                        ? "bg-cyan-200 shadow-[0_0_6px_rgba(34,211,238,0.8)] scale-110"
+                        : "bg-white/20"
+                    }`}
+                  />
+                ))}
+              </div>
+
+              {/* Animated Glowing Thumb with spring physics */}
+              <motion.div
+                className="pointer-events-none absolute top-1/2 -translate-y-1/2 size-5 -ml-2.5 rounded-full border-2 border-white bg-gradient-to-tr from-cyan-400 to-cyan-200 shadow-[0_0_16px_rgba(34,211,238,0.9),0_2px_6px_rgba(0,0,0,0.5)] flex items-center justify-center z-10"
+                style={{
+                  left: `${(selectedIndex / (OCEAN_DEPTH_LAYERS.length - 1)) * 100}%`,
+                }}
+                transition={prefersReducedMotion ? { duration: 0 } : { type: "spring", stiffness: 450, damping: 30 }}
+              >
+                <div className="size-1.5 rounded-full bg-slate-950" />
+              </motion.div>
+
+              {/* Native Range Input for smooth sliding, scrubbing, and drag */}
+              <input
+                type="range"
+                min={0}
+                max={OCEAN_DEPTH_LAYERS.length - 1}
+                step={1}
+                value={selectedIndex}
+                onChange={(e) => handleLayerClick(Number(e.target.value))}
+                aria-label="Ocean depth scrubber slider"
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
+              />
+            </div>
           </div>
         </div>
 
