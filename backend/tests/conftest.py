@@ -26,3 +26,14 @@ def client(backend: FixtureBackend, settings: Settings) -> TestClient:
     app = create_app(backend=backend, settings=settings)
     with TestClient(app) as c:
         yield c
+
+
+@pytest.fixture(scope="session")
+def synthetic_store(tmp_path_factory) -> Path:
+    """Small, fast synthetic pipeline output shared by the pipeline test suite."""
+    from pipeline import synthetic
+
+    out_dir = tmp_path_factory.mktemp("synthetic")
+    # 2015-01-01..2016-12-31 gives two full train years, so per-cell climatology has full-month coverage
+    synthetic.generate(out_dir, "2015-01-01", "2019-03-31", 12, 24, seed=7)
+    return out_dir
