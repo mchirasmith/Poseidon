@@ -260,6 +260,7 @@ export function SectionDashboard() {
               onToggleArgo={() => setShowArgo((v) => !v)}
               meanD20={meanD20}
               meanMLD={meanMLD}
+              argoCount={sectionData.argo_markers.length}
             />
             <SectionHeatmap
               data={sectionData}
