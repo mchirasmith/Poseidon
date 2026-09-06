@@ -18,18 +18,19 @@ The product specification is [poseidon_frontend_spec.md](./poseidon_frontend_spe
 
 ## Current implementation inventory
 
-The current frontend is a Next.js landing page plus an honest `/report` availability scaffold; the data-backed dashboard is not built yet:
+The current frontend is a Next.js landing page plus an honest `/report` availability scaffold and the `/section` route; shared route navigation is implemented, but the data-backed dashboard is not built yet:
 
-- [`frontend/src/app/page.tsx`](../frontend/src/app/page.tsx) implements the Poseidon hero and route links for `/report` and `/explore`, plus the landing feature-card entry point.
-- [`frontend/src/components/landing/feature-cards.tsx`](../frontend/src/components/landing/feature-cards.tsx) makes the three landing cards explanatory triggers for a reusable glass modal. The Validation Report modal offers an `/report` CTA; Explorer and Section remain informational and unbuilt.
+- [`frontend/src/app/page.tsx`](../frontend/src/app/page.tsx) implements the Poseidon hero and route links for `/section` and `/report`, plus the landing feature-card entry point.
+- [`frontend/src/components/landing/feature-cards.tsx`](../frontend/src/components/landing/feature-cards.tsx) makes the landing cards explanatory triggers for a reusable glass modal. The Validation Report and Ocean Section modals offer `/report` and `/section` CTAs.
 - [`frontend/src/components/ui/feature-modal.tsx`](../frontend/src/components/ui/feature-modal.tsx) provides that reusable card-trigger dialog with close controls, Escape handling, scroll locking, and focus return.
 - [`frontend/src/app/report/page.tsx`](../frontend/src/app/report/page.tsx) implements an availability-only Report scaffold: headline metric labels, skill-by-depth controls and comparison-series labels, spatial error/bias, Argo/reference consistency, calibration, summary, and baseline/ablation regions. Every region explicitly says its report data is unavailable; no scientific values are rendered and no data connection exists.
-- [`frontend/src/app/layout.tsx`](../frontend/src/app/layout.tsx) applies product metadata and fonts, and wraps the app in the implemented site-wide `KineticGrid`.
-- [`frontend/src/components/ui/kinetic-grid.tsx`](../frontend/src/components/ui/kinetic-grid.tsx) implements the globally mounted canvas surface, exact five-stop vertical gradient, depth-aware grid contrast, pointer warp/ripples, reduced-motion handling, visibility pausing, and device-pixel-ratio cap. It is reusable for a future Layers page, which has not been built.
+- [`frontend/src/app/layout.tsx`](../frontend/src/app/layout.tsx) applies product metadata and fonts, wraps the app in the implemented site-wide `KineticGrid`, and mounts the shared navigation.
+- [`frontend/src/components/ui/limelight-nav.tsx`](../frontend/src/components/ui/limelight-nav.tsx) provides the shared Home (`/`), Validation report (`/report`), and Ocean section (`/section`) route links. Its active-route limelight uses Framer Motion and resolves to an immediate state for reduced-motion users.
+- [`frontend/src/components/ui/kinetic-grid.tsx`](../frontend/src/components/ui/kinetic-grid.tsx) implements the globally mounted canvas surface, exact five-stop vertical gradient, depth-aware grid contrast, pointer warp/ripples, reduced-motion handling, visibility pausing, and device-pixel-ratio cap.
 - [`frontend/src/components/ui/the-infinite-grid.tsx`](../frontend/src/components/ui/the-infinite-grid.tsx) is retained legacy code; only its card-level `SubtleGridBackground` mounts were removed from the landing page.
 - [`frontend/src/lib/utils.ts`](../frontend/src/lib/utils.ts) supplies the shadcn-compatible `cn` helper.
 
-`/report` exists, but it is not a scientific-data view until an approved payload is connected. Explorer, Section, and About remain unbuilt. There are no API clients/hooks, charts, fallback payloads, tiles, `report.schema.json`, or model data in this repository. The static public files are the default Next starter assets.
+`/report` exists, but it is not a scientific-data view until an approved payload is connected. About remains unbuilt. There are no API clients/hooks, charts, fallback payloads, tiles, `report.schema.json`, or model data in this repository. The static public files are the default Next starter assets.
 
 ## Delivery phases
 
@@ -38,24 +39,24 @@ The current frontend is a Next.js landing page plus an honest `/report` availabi
 Deliverables:
 
 - Record the resolved framework/environment decision and update the API environment variable for Next.js.
-- In progress: create the app-route skeleton and shared shell/navigation. Only `/report` exists; `/explore`, `/section`, and `/about` remain unbuilt.
+- In progress: create the app-route skeleton and shared shell/navigation. Shared Home, Report, and Section navigation is complete; `/about` remains unbuilt.
 - Completed: replace the full-page drifting grid with globally mounted `KineticGrid` and remove the legacy card-level `SubtleGridBackground` mounts from the landing page.
 - Completed: have `KineticGrid` render the global five-stop vertical surface `#FFDDB0` → `#E3F2FD` → `#90CAF9` → `#2196F3` → `#0D47A1`, with depth-aware grid contrast.
-- Completed: make landing feature cards open a reusable glass modal that links to the available Report scaffold and describes Explorer and Section as planned experiences.
-- Completed: give the Validation Report modal an `/report` CTA while retaining its `Got it` dismiss action; Explorer and Section cards remain informational.
+- Completed: make landing feature cards open a reusable glass modal that links to the available Report scaffold and describes Section as a planned experience.
+- Completed: give the Validation Report and Ocean Section modals their `/report` and `/section` CTAs while retaining `Got it`.
 - Define TypeScript API payload types, shared depth-axis/scales utilities, and an explicit fallback file layout.
 - Obtain representative, non-scientific fixture payloads only if clearly labelled as fixtures.
 
-Exit criteria: `/`, `/report`, `/explore`, `/section`, and `/about` have intentional route behavior; the app has a documented API base configuration and no route implies unavailable data is real.
+Exit criteria: `/`, `/report`, `/section`, and `/about` have intentional route behavior; the app has a documented API base configuration and no route implies unavailable data is real.
 
 ## Next phase — Report-first vertical slice
 
-Continue the Report-first vertical slice next. The availability scaffold is implemented; it answers no scientific question until it receives one approved read-only payload. Explorer still has larger upstream dependencies: job polling, tiles, profiles, cached dates, and fallback data.
+Continue the Report-first vertical slice next. The availability scaffold is implemented; it answers no scientific question until it receives one approved read-only payload. The Explorer route has been removed; if it returns it still has larger upstream dependencies: job polling, tiles, profiles, cached dates, and fallback data.
 
 1. Define Report payload types and a Next-compatible API boundary, with loading, error, and explicitly labelled unavailable states; do not invent scientific values.
 2. Connect the first approved backend or bundled payload to headline metrics, skill-by-depth series, and the two summary tables, preserving the current availability state for missing fields.
 3. Add the approved map, Argo/reference, and calibration visualisations through the selected chart wrapper, with table alternatives.
-4. Add the shared dashboard shell/navigation and verify keyboard access, error handling, and loading performance before extending the Report.
+4. Reuse the implemented shared dashboard navigation and verify keyboard access, error handling, and loading performance before extending the Report.
 
 Before wiring real data, decide whether the frontend uses `NEXT_PUBLIC_API_BASE` with CORS or a Next route-handler proxy; obtain the approved, versioned report schema/payload (including filters, series, units, tiles, empty/error rules, and cache expectations); confirm the chart library and bundle strategy; and decide whether the Report uses the global branded visual surface or the specification's light scientific canvas.
 
@@ -70,6 +71,8 @@ Remaining deliverables: report loading/error/fallback states; connected metric c
 Exit criteria: a backend or explicitly labelled fallback payload renders every Report element needed for acceptance criterion 1, with keyboard access and table alternatives.
 
 ### Phase 2 — explorer
+
+Status: not started. The former no-data `/explore` scaffold and its `OceanLayerExplorer` component were removed; no Explorer route exists.
 
 Deliverables: meta/day fetching and cache; test-day picker; run polling/status; inputs; 15-layer/flat-map modes; depth controls; profile fetch/cache; deep-link state.
 

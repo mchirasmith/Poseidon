@@ -84,7 +84,7 @@ export function FeatureModal({
             ref={dialogRef}
             aria-labelledby="feature-modal-title"
             aria-modal="true"
-            className="relative max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-y-auto rounded-[28px] border border-white/15 bg-neutral-950/40 p-5 text-white shadow-[0_16px_40px_rgba(0,0,0,0.6)] backdrop-blur-2xl sm:p-8"
+            className="relative max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-y-auto rounded-[28px] border border-white/25 bg-white/[0.04] p-5 text-white shadow-[inset_0_1px_1px_rgba(255,255,255,0.4),0_24px_64px_rgba(0,0,0,0.7)] backdrop-blur-3xl sm:p-8"
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.98, y: 10 }}
@@ -92,6 +92,7 @@ export function FeatureModal({
             role="dialog"
             onClick={(event) => event.stopPropagation()}
           >
+            <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/50 to-transparent" />
             <button
               ref={closeButtonRef}
               aria-label="Close dialog"
