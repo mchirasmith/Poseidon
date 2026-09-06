@@ -189,15 +189,17 @@ def _char_array(values: list[str], width: int) -> np.ndarray:
 
 
 def _write_argo_profile(path: Path, lat: float, lon: float, wmo: str, day: pd.Timestamp) -> None:
-    pres = np.array([[0.0, 10.0, 20.0, 50.0, 100.0, 200.0, 400.0, 800.0]], dtype=np.float32)
+    # real GDAC files pad unused levels with NaN and a blank QC flag; the flags must stay aligned
+    pres = np.array([[0.0, 10.0, 20.0, 50.0, 100.0, 200.0, 400.0, 800.0, np.nan, np.nan]], dtype=np.float32)
     temp = (28.0 - 0.02 * pres).astype(np.float32)
+    qc = np.array([[b"1"] * 8 + [b" "] * 2], dtype="S1")
     ds = xr.Dataset(
         {
             "PRES": (("N_PROF", "N_LEVELS"), pres),
             "TEMP": (("N_PROF", "N_LEVELS"), temp),
             "TEMP_ADJUSTED": (("N_PROF", "N_LEVELS"), temp),
-            "TEMP_QC": (("N_PROF", "N_LEVELS"), np.full(pres.shape, b"1", dtype="S1")),
-            "TEMP_ADJUSTED_QC": (("N_PROF", "N_LEVELS"), np.full(pres.shape, b"1", dtype="S1")),
+            "TEMP_QC": (("N_PROF", "N_LEVELS"), qc),
+            "TEMP_ADJUSTED_QC": (("N_PROF", "N_LEVELS"), qc),
             "DATA_MODE": (("N_PROF",), np.array([b"D"], dtype="S1")),
             "PLATFORM_NUMBER": (("N_PROF", "STRING8"), _char_array([wmo], 8)),
             "JULD": (("N_PROF",), np.array([day], dtype="datetime64[ns]")),

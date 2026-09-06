@@ -378,6 +378,18 @@ def _decode_chars(raw) -> str:
     return str(raw).strip()
 
 
+def _decode_qc(raw, n: int) -> list[str]:
+    """Per-level QC flags, one per pressure level: never stripped (a blank flag is fill), padded with 9 (missing)."""
+    if isinstance(raw, np.ndarray):
+        text = "".join(x.decode("utf-8", "ignore") if isinstance(x, (bytes, np.bytes_)) else str(x) for x in raw.ravel())
+    elif isinstance(raw, (bytes, np.bytes_)):
+        text = raw.decode("utf-8", "ignore")
+    else:
+        text = str(raw)
+    flags = list(text[:n])
+    return flags + ["9"] * (n - len(flags))
+
+
 def _read_argo_profile(path: Path) -> dict | None:
     """One GDAC profile NetCDF -> the kwargs for argo_matchups.build_matchup_row."""
     import pandas as pd
@@ -390,8 +402,8 @@ def _read_argo_profile(path: Path) -> dict | None:
         temp = np.asarray(ds["TEMP"].values[0], dtype=np.float64)
         n = len(temp)
         temp_adj = np.asarray(ds["TEMP_ADJUSTED"].values[0], dtype=np.float64) if "TEMP_ADJUSTED" in ds else np.full(n, np.nan)
-        temp_qc = list(_decode_chars(ds["TEMP_QC"].values[0])) if "TEMP_QC" in ds else ["9"] * n
-        temp_adj_qc = list(_decode_chars(ds["TEMP_ADJUSTED_QC"].values[0])) if "TEMP_ADJUSTED_QC" in ds else ["9"] * n
+        temp_qc = _decode_qc(ds["TEMP_QC"].values[0], n) if "TEMP_QC" in ds else ["9"] * n
+        temp_adj_qc = _decode_qc(ds["TEMP_ADJUSTED_QC"].values[0], n) if "TEMP_ADJUSTED_QC" in ds else ["9"] * n
         data_mode = _decode_chars(ds["DATA_MODE"].values[0]) if "DATA_MODE" in ds else "R"
         return dict(
             date=pd.Timestamp(ds["JULD"].values[0]),
@@ -407,7 +419,8 @@ def _build_argo_matchups(raw_dir: Path, year0: int, year1: int, grid: Grid, out_
     index = download.download_argo_index()
     filtered = download.filter_argo_index(index, f"{year0}-01-01", f"{year1}-12-31")
     paths = download.download_argo_profiles(filtered, raw_dir)
-    profiles = [p for p in (_read_argo_profile(f) for f in paths) if p is not None]
+    with ProcessPoolExecutor(max_workers=_assembly_workers(None)) as pool:
+        profiles = [p for p in pool.map(_read_argo_profile, paths, chunksize=64) if p is not None]
     df = argo_matchups.build_matchups(profiles, grid)
     df.to_parquet(out_path)
 
