@@ -15,6 +15,7 @@ export const REPORT_METRICS: ReportMetricDefinition[] = [
   { label: "CRPS", unit: "°C", sublabel: "all depths, all test days, ocean cells only" },
 ];
 
-export const REPORT_DEPTHS_M = [0, 5, 10, 20, 30, 50, 75, 100, 125, 150, 200, 300, 500, 700, 1000];
+export const REPORT_DEPTHS_M = OCEAN_DEPTHS_M;
 
 export const REPORT_SERIES = ["Poseidon", "Climatology", "Ridge/EOF", "U-Net (same day)", "ConvLSTM U-Net"];
+import { OCEAN_DEPTHS_M } from "@/lib/depths";

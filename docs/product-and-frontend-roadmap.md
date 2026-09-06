@@ -18,18 +18,19 @@ The product specification is [poseidon_frontend_spec.md](./poseidon_frontend_spe
 
 ## Current implementation inventory
 
-The current frontend is a Next.js landing page plus an honest `/report` availability scaffold; the data-backed dashboard is not built yet:
+The current frontend is a Next.js landing page plus honest `/report` and `/explore` availability scaffolds; the data-backed dashboard is not built yet:
 
 - [`frontend/src/app/page.tsx`](../frontend/src/app/page.tsx) implements the Poseidon hero and route links for `/report` and `/explore`, plus the landing feature-card entry point.
-- [`frontend/src/components/landing/feature-cards.tsx`](../frontend/src/components/landing/feature-cards.tsx) makes the three landing cards explanatory triggers for a reusable glass modal. The Validation Report modal offers an `/report` CTA; Explorer and Section remain informational and unbuilt.
+- [`frontend/src/components/landing/feature-cards.tsx`](../frontend/src/components/landing/feature-cards.tsx) makes the three landing cards explanatory triggers for a reusable glass modal. The Validation Report and 3D Depth Stack modals offer `/report` and `/explore` CTAs; Section remains informational.
 - [`frontend/src/components/ui/feature-modal.tsx`](../frontend/src/components/ui/feature-modal.tsx) provides that reusable card-trigger dialog with close controls, Escape handling, scroll locking, and focus return.
 - [`frontend/src/app/report/page.tsx`](../frontend/src/app/report/page.tsx) implements an availability-only Report scaffold: headline metric labels, skill-by-depth controls and comparison-series labels, spatial error/bias, Argo/reference consistency, calibration, summary, and baseline/ablation regions. Every region explicitly says its report data is unavailable; no scientific values are rendered and no data connection exists.
 - [`frontend/src/app/layout.tsx`](../frontend/src/app/layout.tsx) applies product metadata and fonts, and wraps the app in the implemented site-wide `KineticGrid`.
-- [`frontend/src/components/ui/kinetic-grid.tsx`](../frontend/src/components/ui/kinetic-grid.tsx) implements the globally mounted canvas surface, exact five-stop vertical gradient, depth-aware grid contrast, pointer warp/ripples, reduced-motion handling, visibility pausing, and device-pixel-ratio cap. It is reusable for a future Layers page, which has not been built.
+- [`frontend/src/components/ui/kinetic-grid.tsx`](../frontend/src/components/ui/kinetic-grid.tsx) implements the globally mounted canvas surface, exact five-stop vertical gradient, depth-aware grid contrast, pointer warp/ripples, reduced-motion handling, visibility pausing, and device-pixel-ratio cap.
+- [`frontend/src/app/explore/page.tsx`](../frontend/src/app/explore/page.tsx) and [`frontend/src/components/explore/ocean-layer-explorer.tsx`](../frontend/src/components/explore/ocean-layer-explorer.tsx) implement a data-empty 15-layer CSS 3D navigation scaffold. The nine immediately shallower planes use progressively stronger CSS blur, while the selected and deeper planes remain sharp. It shares the canonical depth axis with the Report, but deliberately shows no scientific values, maps, profiles, dates, or model state.
 - [`frontend/src/components/ui/the-infinite-grid.tsx`](../frontend/src/components/ui/the-infinite-grid.tsx) is retained legacy code; only its card-level `SubtleGridBackground` mounts were removed from the landing page.
 - [`frontend/src/lib/utils.ts`](../frontend/src/lib/utils.ts) supplies the shadcn-compatible `cn` helper.
 
-`/report` exists, but it is not a scientific-data view until an approved payload is connected. Explorer, Section, and About remain unbuilt. There are no API clients/hooks, charts, fallback payloads, tiles, `report.schema.json`, or model data in this repository. The static public files are the default Next starter assets.
+`/report` and `/explore` exist, but neither is a scientific-data view until an approved payload is connected. Section and About remain unbuilt. There are no API clients/hooks, charts, fallback payloads, tiles, `report.schema.json`, or model data in this repository. The static public files are the default Next starter assets.
 
 ## Delivery phases
 
@@ -38,11 +39,11 @@ The current frontend is a Next.js landing page plus an honest `/report` availabi
 Deliverables:
 
 - Record the resolved framework/environment decision and update the API environment variable for Next.js.
-- In progress: create the app-route skeleton and shared shell/navigation. Only `/report` exists; `/explore`, `/section`, and `/about` remain unbuilt.
+- In progress: create the app-route skeleton and shared shell/navigation. `/report` and `/explore` exist; `/section` and `/about` remain unbuilt.
 - Completed: replace the full-page drifting grid with globally mounted `KineticGrid` and remove the legacy card-level `SubtleGridBackground` mounts from the landing page.
 - Completed: have `KineticGrid` render the global five-stop vertical surface `#FFDDB0` → `#E3F2FD` → `#90CAF9` → `#2196F3` → `#0D47A1`, with depth-aware grid contrast.
 - Completed: make landing feature cards open a reusable glass modal that links to the available Report scaffold and describes Explorer and Section as planned experiences.
-- Completed: give the Validation Report modal an `/report` CTA while retaining its `Got it` dismiss action; Explorer and Section cards remain informational.
+- Completed: give the Validation Report and 3D Depth Stack modals their `/report` and `/explore` CTAs while retaining `Got it`; the Section card remains informational.
 - Define TypeScript API payload types, shared depth-axis/scales utilities, and an explicit fallback file layout.
 - Obtain representative, non-scientific fixture payloads only if clearly labelled as fixtures.
 
@@ -70,6 +71,8 @@ Remaining deliverables: report loading/error/fallback states; connected metric c
 Exit criteria: a backend or explicitly labelled fallback payload renders every Report element needed for acceptance criterion 1, with keyboard access and table alternatives.
 
 ### Phase 2 — explorer
+
+Status: a no-data 15-layer CSS 3D navigation scaffold is available at `/explore`. Its selected plane and deeper planes remain sharp while up to nine immediately shallower planes progressively blur; its slider and rail use the canonical depth axis, but it does not fetch a day, render scientific tiles, or expose a profile.
 
 Deliverables: meta/day fetching and cache; test-day picker; run polling/status; inputs; 15-layer/flat-map modes; depth controls; profile fetch/cache; deep-link state.
 

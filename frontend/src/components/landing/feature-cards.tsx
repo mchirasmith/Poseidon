@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, BarChart3, Compass, Layers, type LucideIcon } from "lucide-react";
+import { ArrowRight, BarChart3, Layers, type LucideIcon } from "lucide-react";
 import { useCallback, useState } from "react";
 import { FeatureModal } from "@/components/ui/feature-modal";
 
@@ -12,6 +12,7 @@ interface Feature {
   icon: LucideIcon;
   accent: string;
   actionHref?: string;
+  modalActionLabel?: string;
 }
 
 const features: Feature[] = [
@@ -23,6 +24,7 @@ const features: Feature[] = [
     icon: BarChart3,
     accent: "text-blue-400 border-blue-500/20 bg-blue-500/10",
     actionHref: "/report",
+    modalActionLabel: "Open validation report",
   },
   {
     title: "3D Depth Stack",
@@ -31,6 +33,8 @@ const features: Feature[] = [
     action: "Open Explorer",
     icon: Layers,
     accent: "text-cyan-400 border-cyan-500/20 bg-cyan-500/10",
+    actionHref: "/explore",
+    modalActionLabel: "Open layer explorer",
   },
   {
     title: "Ocean Section",
@@ -88,7 +92,7 @@ export function FeatureCards() {
         isOpen={activeFeature !== null}
         title={activeFeature?.title ?? ""}
         actionHref={activeFeature?.actionHref}
-        actionLabel={activeFeature?.actionHref ? "Open validation report" : undefined}
+        actionLabel={activeFeature?.modalActionLabel}
         onOpenChange={(open) => {
           if (!open) closeModal();
         }}
