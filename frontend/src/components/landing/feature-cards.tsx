@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, BarChart3, Layers, Spline, type LucideIcon } from "lucide-react";
+import { ArrowRight, BarChart3, Spline, type LucideIcon } from "lucide-react";
 import { useCallback, useState } from "react";
 import { FeatureModal } from "@/components/ui/feature-modal";
 
@@ -17,26 +17,6 @@ interface Feature {
 
 const features: Feature[] = [
   {
-    title: "Validation Report",
-    summary: "Rigorous locked test set benchmarks (2019-2020) with Argo float comparisons and baseline models.",
-    detail: "Review benchmark performance across the locked 2019–2020 test set, including Argo float comparisons and baseline-model results.",
-    action: "View Metrics",
-    icon: BarChart3,
-    accent: "text-blue-400 border-blue-500/20 bg-blue-500/10",
-    actionHref: "/report",
-    modalActionLabel: "Open validation report",
-  },
-  {
-    title: "3D Depth Stack",
-    summary: "Navigate a compact 15-layer depth structure (0 m to 1000 m) and inspect the selected slice.",
-    detail: "Explore the planned 15-layer subsurface reconstruction, from the surface to 1000m, and inspect a live point temperature profile.",
-    action: "Open Explorer",
-    icon: Layers,
-    accent: "text-cyan-400 border-cyan-500/20 bg-cyan-500/10",
-    actionHref: "/explore",
-    modalActionLabel: "Open layer explorer",
-  },
-  {
     title: "Ocean Section",
     summary: "Slice across custom ocean coordinates to view thermocline depth, D20 contour, and mixed layer depth.",
     detail: "Draw an interactive ocean transect across custom coordinates or presets to inspect thermocline depth, D20 contours, and mixed-layer depth.",
@@ -46,6 +26,16 @@ const features: Feature[] = [
     actionHref: "/section",
     modalActionLabel: "Open ocean section",
   },
+  {
+    title: "Validation Report",
+    summary: "Rigorous locked test set benchmarks (2019-2020) with Argo float comparisons and baseline models.",
+    detail: "Review benchmark performance across the locked 2019–2020 test set, including Argo float comparisons and baseline-model results.",
+    action: "View Metrics",
+    icon: BarChart3,
+    accent: "text-blue-400 border-blue-500/20 bg-blue-500/10",
+    actionHref: "/report",
+    modalActionLabel: "Open validation report",
+  },
 ];
 
 export function FeatureCards() {
@@ -54,7 +44,7 @@ export function FeatureCards() {
 
   return (
     <>
-      <div id="feature-previews" className="pointer-events-auto mt-16 grid w-full grid-cols-1 gap-5 text-left md:grid-cols-3">
+      <div id="feature-previews" className="pointer-events-auto mt-16 grid w-full grid-cols-1 gap-5 text-left md:grid-cols-2">
         {features.map((feature) => {
           const Icon = feature.icon;
           return (
