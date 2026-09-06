@@ -1,20 +1,30 @@
 import Link from "next/link";
 import { ArrowLeft, Waves } from "lucide-react";
-import { REPORT_AVAILABILITY, REPORT_DEPTHS_M, REPORT_METRICS, REPORT_SERIES } from "@/lib/report";
-import { AvailabilityNotice, DisabledControl, MetricShell, ReportPanel, UnavailableRegion } from "@/components/report/report-primitives";
+import { REPORT_AVAILABILITY, REPORT_METRICS } from "@/lib/report";
+import { AvailabilityNotice, MetricShell, ReportPanel, UnavailableRegion } from "@/components/report/report-primitives";
+import { OceanDepthStack } from "@/components/report/ocean-depth-stack";
 
 function ReportHeader() {
   return (
     <header className="flex flex-col gap-5 border-b border-white/15 pb-5 lg:flex-row lg:items-center lg:justify-between">
       <div className="flex items-center gap-4">
-        <Link aria-label="Back to Poseidon home" className="grid size-10 place-items-center rounded-full border border-white/15 bg-white/5 text-white/80 transition hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200" href="/"><ArrowLeft aria-hidden="true" size={18} /></Link>
-        <div><p className="font-mono text-xs uppercase tracking-[0.22em] text-cyan-200/80">Poseidon / report</p><h1 className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl">Validation report</h1></div>
+        <Link
+          aria-label="Back to Poseidon home"
+          className="grid size-10 place-items-center rounded-full border border-white/20 bg-white/[0.05] text-white/80 shadow-[inset_0_1px_1px_rgba(255,255,255,0.3)] backdrop-blur-xl transition-all duration-200 hover:scale-105 hover:border-white/40 hover:bg-white/[0.10] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200"
+          href="/"
+        >
+          <ArrowLeft aria-hidden="true" size={18} />
+        </Link>
+        <div>
+          <p className="font-mono text-xs uppercase tracking-[0.22em] text-cyan-200/80">Poseidon / report</p>
+          <h1 className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl">Validation report</h1>
+        </div>
       </div>
       <div className="flex flex-wrap items-center gap-2 text-xs" aria-label="Report navigation and status">
-        <span aria-current="page" className="rounded-full border border-cyan-200/35 bg-cyan-200/10 px-3 py-1.5 text-cyan-100">Report</span>
-        <span aria-disabled="true" className="rounded-full border border-white/10 px-3 py-1.5 text-white/40">Explorer · planned</span>
-        <span aria-disabled="true" className="rounded-full border border-white/10 px-3 py-1.5 text-white/40">Section · planned</span>
-        <span className="rounded-full border border-amber-200/25 bg-amber-200/10 px-3 py-1.5 text-amber-100">data unavailable</span>
+        <span aria-current="page" className="rounded-full border border-cyan-400/30 bg-cyan-400/10 px-3.5 py-1.5 font-mono text-cyan-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.2)] backdrop-blur-md">Report</span>
+        <span aria-disabled="true" className="rounded-full border border-white/15 bg-white/[0.03] px-3.5 py-1.5 font-mono text-white/40 backdrop-blur-md">Explorer · planned</span>
+        <span aria-disabled="true" className="rounded-full border border-white/15 bg-white/[0.03] px-3.5 py-1.5 font-mono text-white/40 backdrop-blur-md">Section · planned</span>
+        <span className="rounded-full border border-amber-300/30 bg-amber-400/10 px-3.5 py-1.5 font-mono text-amber-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.2)] backdrop-blur-md">data unavailable</span>
       </div>
     </header>
   );
@@ -22,17 +32,11 @@ function ReportHeader() {
 
 function SkillByDepthShell() {
   return (
-    <ReportPanel title="Skill by depth" description="The approved report will populate the depth axis, comparison series, and filters.">
-      <div className="mb-4 flex flex-wrap gap-2" aria-label="Unconfigured report filters">
-        {["RMSE", "Bias", "Correlation", "Anomaly correlation", "All basins", "All seasons"].map((control) => <DisabledControl key={control}>{control}</DisabledControl>)}
-      </div>
-      <div className="grid min-h-[380px] grid-cols-[4rem_1fr] overflow-hidden rounded-2xl border border-dashed border-white/15 bg-black/15" aria-busy="true">
-        <div className="flex flex-col justify-between border-r border-white/10 px-2 py-4 text-right text-[10px] text-white/45" aria-label="Planned depth labels in metres">
-          {REPORT_DEPTHS_M.map((depth) => <span key={depth}>{depth} m</span>)}
-        </div>
-        <UnavailableRegion label="Skill-by-depth chart unavailable" detail="The chart will render only after metric series, depth coordinates, basin, and season fields are approved." />
-      </div>
-      <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-xs text-white/55" aria-label="Planned comparison series">{REPORT_SERIES.map((method) => <span key={method}>○ {method}</span>)}</div>
+    <ReportPanel
+      title="Skill by depth · 3D Ocean Stratification"
+      description="Interactive 15-layer subsurface temperature reconstruction from satellite surface observations for the North Indian Ocean (0 m to 1000 m)."
+    >
+      <OceanDepthStack />
     </ReportPanel>
   );
 }
@@ -40,8 +44,26 @@ function SkillByDepthShell() {
 function TableShell({ title, description, columns }: { title: string; description: string; columns: string[] }) {
   return (
     <ReportPanel title={title} description={description}>
-      <div className="overflow-x-auto rounded-2xl border border-white/10" role="status">
-        <table className="w-full min-w-[34rem] text-left text-sm"><caption className="sr-only">{title} — unavailable pending an approved report payload.</caption><thead className="bg-white/5 text-xs uppercase tracking-wide text-white/50"><tr>{columns.map((column) => <th key={column} className="px-4 py-3 font-medium">{column}</th>)}</tr></thead><tbody><tr className="border-t border-white/10"><td className="px-4 py-5 text-white/60" colSpan={columns.length}>Awaiting validated report payload</td></tr></tbody></table>
+      <div className="relative overflow-hidden rounded-2xl border border-white/20 bg-white/[0.02] shadow-[inset_0_1px_1px_rgba(255,255,255,0.15)] backdrop-blur-xl" role="status">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[34rem] text-left text-sm">
+            <caption className="sr-only">{title} — unavailable pending an approved report payload.</caption>
+            <thead className="border-b border-white/15 bg-white/[0.04] text-xs font-mono uppercase tracking-wider text-white/60">
+              <tr>{columns.map((column) => <th key={column} className="px-4 py-3.5 font-medium">{column}</th>)}</tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td className="px-4 py-8 text-center text-sm text-neutral-300/70" colSpan={columns.length}>
+                  <span className="inline-flex items-center gap-2 font-mono text-xs text-cyan-200/80">
+                    <span className="size-1.5 rounded-full bg-cyan-400 animate-pulse" />
+                    Awaiting validated report payload
+                  </span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
     </ReportPanel>
   );
@@ -52,9 +74,27 @@ export function ReportDashboard() {
     <main className="min-h-screen px-4 py-5 text-white sm:px-6 lg:px-8">
       <div className="mx-auto max-w-7xl">
         <ReportHeader />
-        <section className="mt-8" aria-labelledby="report-overview">
-          <div className="max-w-3xl"><p className="font-mono text-xs uppercase tracking-[0.22em] text-cyan-200/80">Locked evaluation workspace</p><h2 id="report-overview" className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">Evidence, ready for the approved test-set report.</h2><p className="mt-3 text-sm leading-relaxed text-white/65 sm:text-base">This dashboard will display the held-out validation report returned by <code className="rounded bg-white/10 px-1.5 py-0.5 text-cyan-100">/api/report</code>. The backend payload and NetCDF outputs remain the scientific authority.</p></div>
-          <div className="mt-6"><AvailabilityNotice availability={REPORT_AVAILABILITY} /></div>
+        <section className="mt-8 space-y-6" aria-labelledby="report-overview">
+          <div className="group relative overflow-hidden rounded-2xl border border-white/20 bg-white/[0.03] p-6 sm:p-8 shadow-[inset_0_1px_1px_rgba(255,255,255,0.35),0_8px_32px_rgba(0,0,0,0.25)] backdrop-blur-2xl transition-all duration-300">
+            {/* Liquid glass light sheen & top edge reflection */}
+            <div className="pointer-events-none absolute inset-0 rounded-2xl bg-gradient-to-br from-white/[0.10] via-transparent to-transparent opacity-70 transition-opacity" />
+            <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/40 to-transparent" />
+
+            <div className="relative z-10 max-w-3xl">
+              <p className="font-mono text-xs uppercase tracking-[0.22em] text-cyan-200/80">Locked evaluation workspace</p>
+              <h2 id="report-overview" className="mt-2 text-2xl font-bold tracking-tight text-white sm:text-3xl lg:text-4xl">
+                Evidence, ready for the approved test-set report.
+              </h2>
+              <p className="mt-3 text-sm leading-relaxed text-neutral-200/80 sm:text-base">
+                This dashboard will display the held-out validation report returned by{" "}
+                <code className="rounded border border-cyan-400/30 bg-cyan-500/10 px-1.5 py-0.5 font-mono text-cyan-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.15)] backdrop-blur-sm">
+                  /api/report
+                </code>
+                . The backend payload and NetCDF outputs remain the scientific authority.
+              </p>
+            </div>
+          </div>
+          <AvailabilityNotice availability={REPORT_AVAILABILITY} />
         </section>
         <section className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-label="Headline metrics" aria-busy="true">{REPORT_METRICS.map((metric) => <MetricShell key={metric.label} metric={metric} />)}</section>
         <section className="mt-6"><SkillByDepthShell /></section>

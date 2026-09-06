@@ -2,14 +2,32 @@ import type { ReactNode } from "react";
 import { DatabaseZap, ShieldAlert } from "lucide-react";
 import type { ReportAvailability, ReportMetricDefinition } from "@/lib/report";
 
-export function ReportPanel({ title, description, children, className = "" }: { title: string; description: string; children: ReactNode; className?: string }) {
+export function ReportPanel({
+  title,
+  description,
+  children,
+  className = "",
+}: {
+  title: string;
+  description: string;
+  children: ReactNode;
+  className?: string;
+}) {
   return (
-    <section className={`rounded-3xl border border-white/15 bg-neutral-950/55 p-5 backdrop-blur-xl sm:p-6 ${className}`}>
-      <div className="mb-5">
-        <h2 className="text-lg font-medium text-white">{title}</h2>
-        <p className="mt-1 text-sm text-white/55">{description}</p>
+    <section
+      className={`group relative overflow-hidden rounded-2xl border border-white/20 bg-white/[0.03] p-6 shadow-[inset_0_1px_1px_rgba(255,255,255,0.35),0_8px_32px_rgba(0,0,0,0.25)] backdrop-blur-2xl transition-all duration-300 sm:p-7 ${className}`}
+    >
+      {/* Liquid glass light sheen & top edge reflection */}
+      <div className="pointer-events-none absolute inset-0 rounded-2xl bg-gradient-to-br from-white/[0.10] via-transparent to-transparent opacity-70 transition-opacity" />
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/40 to-transparent" />
+
+      <div className="relative z-10">
+        <div className="mb-5">
+          <h2 className="text-lg font-bold tracking-tight text-white">{title}</h2>
+          <p className="mt-1 text-sm leading-relaxed text-neutral-200/80">{description}</p>
+        </div>
+        {children}
       </div>
-      {children}
     </section>
   );
 }
@@ -31,33 +49,88 @@ export function AvailabilityNotice({ availability }: { availability: ReportAvail
   }[availability];
 
   return (
-    <div className="flex items-start gap-3 rounded-2xl border border-amber-200/20 bg-amber-200/10 p-4" role="status" aria-live="polite">
-      <ShieldAlert aria-hidden="true" className="mt-0.5 shrink-0 text-amber-100" size={20} />
-      <div><p className="text-sm font-medium text-amber-50">{content.title}</p><p className="mt-1 text-sm text-amber-50/75">{content.body}</p></div>
+    <div
+      className="group relative overflow-hidden rounded-2xl border border-amber-300/25 bg-amber-400/[0.04] p-5 shadow-[inset_0_1px_1px_rgba(255,255,255,0.25),0_8px_32px_rgba(0,0,0,0.25)] backdrop-blur-2xl"
+      role="status"
+      aria-live="polite"
+    >
+      {/* Liquid glass light sheen & top edge reflection */}
+      <div className="pointer-events-none absolute inset-0 rounded-2xl bg-gradient-to-br from-white/[0.08] via-transparent to-transparent opacity-70" />
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-amber-300/40 to-transparent" />
+
+      <div className="relative z-10 flex items-start gap-3">
+        <div className="rounded-xl border border-amber-300/30 bg-amber-400/10 p-2.5 shadow-[inset_0_1px_1px_rgba(255,255,255,0.25)] backdrop-blur-md">
+          <ShieldAlert aria-hidden="true" className="shrink-0 text-amber-200" size={20} />
+        </div>
+        <div>
+          <p className="text-sm font-semibold text-amber-100">{content.title}</p>
+          <p className="mt-1 text-sm leading-relaxed text-amber-100/75">{content.body}</p>
+        </div>
+      </div>
     </div>
   );
 }
 
-export function UnavailableRegion({ label, detail = "Waiting for the validated report payload. No scientific values are displayed until it is connected." }: { label: string; detail?: string }) {
+export function UnavailableRegion({
+  label,
+  detail = "Waiting for the validated report payload. No scientific values are displayed until it is connected.",
+  className = "",
+}: {
+  label: string;
+  detail?: string;
+  className?: string;
+}) {
   return (
-    <div className="flex min-h-44 flex-col items-center justify-center rounded-2xl border border-dashed border-white/15 bg-black/15 p-6 text-center" role="status">
-      <DatabaseZap aria-hidden="true" className="mb-3 text-cyan-200/70" size={24} />
-      <p className="text-sm font-medium text-white/85">{label}</p>
-      <p className="mt-1 max-w-sm text-xs leading-relaxed text-white/50">{detail}</p>
+    <div
+      className={`relative overflow-hidden flex min-h-44 flex-col items-center justify-center rounded-2xl border border-dashed border-white/20 bg-white/[0.02] p-6 text-center shadow-[inset_0_1px_1px_rgba(255,255,255,0.15)] backdrop-blur-xl ${className}`}
+      role="status"
+    >
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/[0.04] to-transparent opacity-60" />
+      <div className="relative z-10 flex flex-col items-center">
+        <div className="mb-3 rounded-xl border border-cyan-500/20 bg-cyan-500/10 p-2.5 text-cyan-300 shadow-[inset_0_1px_1px_rgba(255,255,255,0.2)] backdrop-blur-md">
+          <DatabaseZap aria-hidden="true" size={22} />
+        </div>
+        <p className="text-sm font-semibold text-white/90">{label}</p>
+        <p className="mt-1 max-w-sm text-xs leading-relaxed text-neutral-300/70">{detail}</p>
+      </div>
     </div>
   );
 }
 
 export function MetricShell({ metric }: { metric: ReportMetricDefinition }) {
   return (
-    <article className="rounded-2xl border border-white/15 bg-neutral-950/55 p-5 backdrop-blur-xl">
-      <p className="text-sm text-white/60">{metric.label}{metric.unit ? ` (${metric.unit})` : ""}</p>
-      <p className="mt-4 text-2xl font-medium tracking-tight text-white/85">Unavailable</p>
-      <p className="mt-2 text-xs leading-relaxed text-white/45">{metric.sublabel}</p>
+    <article className="group relative overflow-hidden rounded-2xl border border-white/20 bg-white/[0.03] p-5 shadow-[inset_0_1px_1px_rgba(255,255,255,0.35),0_8px_32px_rgba(0,0,0,0.25)] backdrop-blur-2xl transition-all duration-300 hover:-translate-y-1 hover:border-white/40 hover:bg-white/[0.06] hover:shadow-[inset_0_1px_1px_rgba(255,255,255,0.55),0_16px_48px_rgba(0,0,0,0.35)]">
+      {/* Liquid glass light sheen & top edge reflection */}
+      <div className="pointer-events-none absolute inset-0 rounded-2xl bg-gradient-to-br from-white/[0.12] via-transparent to-transparent opacity-70 transition-opacity group-hover:opacity-100" />
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/40 to-transparent" />
+
+      <div className="relative z-10 flex h-full flex-col justify-between space-y-3">
+        <div className="flex items-center justify-between">
+          <p className="text-sm font-semibold text-neutral-200">
+            {metric.label}
+            {metric.unit ? ` (${metric.unit})` : ""}
+          </p>
+          <span className="rounded-lg border border-cyan-500/20 bg-cyan-500/10 px-2 py-0.5 font-mono text-[10px] text-cyan-300 shadow-[inset_0_1px_1px_rgba(255,255,255,0.2)] backdrop-blur-md">
+            HELD-OUT
+          </span>
+        </div>
+        <div>
+          <p className="font-mono text-2xl font-bold tracking-tight text-white/90">Unavailable</p>
+          <p className="mt-1 text-xs leading-relaxed text-neutral-300/70">{metric.sublabel}</p>
+        </div>
+      </div>
     </article>
   );
 }
 
 export function DisabledControl({ children }: { children: ReactNode }) {
-  return <button className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/45" disabled type="button">{children}</button>;
+  return (
+    <button
+      className="rounded-full border border-white/20 bg-white/[0.04] px-3.5 py-1.5 font-mono text-xs text-neutral-300/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.15)] backdrop-blur-md cursor-not-allowed"
+      disabled
+      type="button"
+    >
+      {children}
+    </button>
+  );
 }
