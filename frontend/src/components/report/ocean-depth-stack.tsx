@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { motion, useReducedMotion } from "framer-motion";
 import { 
   Play, 
   Pause, 
@@ -18,6 +19,7 @@ type ViewMode = "stack" | "flat";
 type MetricMode = "temp" | "rmse" | "anomaly";
 
 export function OceanDepthStack() {
+  const prefersReducedMotion = useReducedMotion();
   const [selectedIndex, setSelectedIndex] = useState<number>(7); // Default to 100m (thermocline / D20)
   const [viewMode, setViewMode] = useState<ViewMode>("stack");
   const [metricMode, setMetricMode] = useState<MetricMode>("temp");
@@ -111,72 +113,89 @@ export function OceanDepthStack() {
     <div className="flex flex-col gap-6">
       {/* Top Controls Toolbar */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 pb-4">
-        {/* Left: View Modes */}
-        <div className="flex items-center gap-1 rounded-xl border border-white/15 bg-white/[0.03] p-1 backdrop-blur-md">
-          <button
-            onClick={() => setViewMode("stack")}
-            className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${
-              viewMode === "stack"
-                ? "bg-cyan-500/20 text-cyan-200 shadow-sm border border-cyan-400/30"
-                : "text-white/60 hover:text-white hover:bg-white/5"
-            }`}
-            type="button"
-          >
-            <Layers size={13} />
-            <span>3D Stack</span>
-          </button>
-          <button
-            onClick={() => setViewMode("flat")}
-            className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${
-              viewMode === "flat"
-                ? "bg-cyan-500/20 text-cyan-200 shadow-sm border border-cyan-400/30"
-                : "text-white/60 hover:text-white hover:bg-white/5"
-            }`}
-            type="button"
-          >
-            <Eye size={13} />
-            <span>Flat Slice</span>
-          </button>
+        {/* Left: View Modes (Limelight Navbar) */}
+        <div className="relative inline-flex items-center rounded-2xl border border-white/15 bg-slate-950/60 p-1 shadow-[0_8px_32px_rgba(0,0,0,0.3),inset_0_1px_0_rgba(255,255,255,0.15)] backdrop-blur-2xl">
+          {([
+            { id: "stack" as ViewMode, label: "3D Stack", icon: Layers },
+            { id: "flat" as ViewMode, label: "Flat Slice", icon: Eye },
+          ] as const).map((tab) => {
+            const Icon = tab.icon;
+            const active = viewMode === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setViewMode(tab.id)}
+                className={`relative z-10 flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-cyan-300 ${
+                  active ? "font-semibold text-cyan-100" : "text-white/60 hover:text-white"
+                }`}
+                type="button"
+              >
+                {active && (
+                  <>
+                    <motion.span
+                      aria-hidden="true"
+                      className="pointer-events-none absolute inset-0 rounded-xl border border-cyan-400/40 bg-cyan-500/20 shadow-[inset_0_1px_1px_rgba(255,255,255,0.25),0_0_14px_rgba(34,211,238,0.25)]"
+                      layoutId="limelight-view-pill"
+                      transition={prefersReducedMotion ? { duration: 0 } : { type: "spring", stiffness: 380, damping: 30 }}
+                    />
+                    <motion.span
+                      aria-hidden="true"
+                      className="pointer-events-none absolute inset-x-2 top-0 h-1 rounded-full bg-cyan-200 shadow-[0_12px_18px_rgba(103,232,249,0.85)]"
+                      layoutId="limelight-view-beam"
+                      transition={prefersReducedMotion ? { duration: 0 } : { type: "spring", stiffness: 380, damping: 30 }}
+                    >
+                      <span className="absolute left-[-30%] top-1 h-8 w-[160%] bg-gradient-to-b from-cyan-200/25 to-transparent [clip-path:polygon(10%_100%,28%_0,72%_0,90%_100%)]" />
+                    </motion.span>
+                  </>
+                )}
+                <Icon size={14} className={active ? "text-cyan-200" : "text-white/70"} />
+                <span>{tab.label}</span>
+              </button>
+            );
+          })}
         </div>
 
-        {/* Center: Metric display mode */}
-        <div className="flex items-center gap-1 rounded-xl border border-white/15 bg-white/[0.03] p-1 backdrop-blur-md">
-          <button
-            onClick={() => setMetricMode("temp")}
-            className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${
-              metricMode === "temp"
-                ? "bg-cyan-500/20 text-cyan-200 border border-cyan-400/30"
-                : "text-white/60 hover:text-white"
-            }`}
-            type="button"
-          >
-            <Thermometer size={13} />
-            <span>Temperature</span>
-          </button>
-          <button
-            onClick={() => setMetricMode("rmse")}
-            className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${
-              metricMode === "rmse"
-                ? "bg-cyan-500/20 text-cyan-200 border border-cyan-400/30"
-                : "text-white/60 hover:text-white"
-            }`}
-            type="button"
-          >
-            <BarChart2 size={13} />
-            <span>RMSE Skill</span>
-          </button>
-          <button
-            onClick={() => setMetricMode("anomaly")}
-            className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${
-              metricMode === "anomaly"
-                ? "bg-cyan-500/20 text-cyan-200 border border-cyan-400/30"
-                : "text-white/60 hover:text-white"
-            }`}
-            type="button"
-          >
-            <TrendingUp size={13} />
-            <span>Anomaly</span>
-          </button>
+        {/* Center: Metric display mode (Limelight Navbar) */}
+        <div className="relative inline-flex items-center rounded-2xl border border-white/15 bg-slate-950/60 p-1 shadow-[0_8px_32px_rgba(0,0,0,0.3),inset_0_1px_0_rgba(255,255,255,0.15)] backdrop-blur-2xl">
+          {([
+            { id: "temp" as MetricMode, label: "Temperature", icon: Thermometer },
+            { id: "rmse" as MetricMode, label: "RMSE Skill", icon: BarChart2 },
+            { id: "anomaly" as MetricMode, label: "Anomaly", icon: TrendingUp },
+          ] as const).map((tab) => {
+            const Icon = tab.icon;
+            const active = metricMode === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setMetricMode(tab.id)}
+                className={`relative z-10 flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-cyan-300 ${
+                  active ? "font-semibold text-cyan-100" : "text-white/60 hover:text-white"
+                }`}
+                type="button"
+              >
+                {active && (
+                  <>
+                    <motion.span
+                      aria-hidden="true"
+                      className="pointer-events-none absolute inset-0 rounded-xl border border-cyan-400/40 bg-cyan-500/20 shadow-[inset_0_1px_1px_rgba(255,255,255,0.25),0_0_14px_rgba(34,211,238,0.25)]"
+                      layoutId="limelight-metric-pill"
+                      transition={prefersReducedMotion ? { duration: 0 } : { type: "spring", stiffness: 380, damping: 30 }}
+                    />
+                    <motion.span
+                      aria-hidden="true"
+                      className="pointer-events-none absolute inset-x-2 top-0 h-1 rounded-full bg-cyan-200 shadow-[0_12px_18px_rgba(103,232,249,0.85)]"
+                      layoutId="limelight-metric-beam"
+                      transition={prefersReducedMotion ? { duration: 0 } : { type: "spring", stiffness: 380, damping: 30 }}
+                    >
+                      <span className="absolute left-[-30%] top-1 h-8 w-[160%] bg-gradient-to-b from-cyan-200/25 to-transparent [clip-path:polygon(10%_100%,28%_0,72%_0,90%_100%)]" />
+                    </motion.span>
+                  </>
+                )}
+                <Icon size={14} className={active ? "text-cyan-200" : "text-white/70"} />
+                <span>{tab.label}</span>
+              </button>
+            );
+          })}
         </div>
 
         {/* Right: Auto-play */}

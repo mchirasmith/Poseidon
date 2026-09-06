@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { Space_Grotesk, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import KineticGrid from "@/components/ui/kinetic-grid";
-import { LimelightNav } from "@/components/ui/limelight-nav";
 
 const spaceGrotesk = Space_Grotesk({
   variable: "--font-space-grotesk",
@@ -32,9 +31,6 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col bg-black text-white relative">
         <KineticGrid>
-          <div className="pointer-events-none fixed inset-x-0 top-4 z-30 flex justify-center px-4">
-            <LimelightNav className="pointer-events-auto" />
-          </div>
           {children}
         </KineticGrid>
       </body>
