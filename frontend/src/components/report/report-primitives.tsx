@@ -111,11 +111,18 @@ export function MetricShell({ metric }: { metric: ReportMetricDefinition }) {
             {metric.unit ? ` (${metric.unit})` : ""}
           </p>
           <span className="rounded-lg border border-cyan-500/20 bg-cyan-500/10 px-2 py-0.5 font-mono text-[10px] text-cyan-300 shadow-[inset_0_1px_1px_rgba(255,255,255,0.2)] backdrop-blur-md">
-            HELD-OUT
+            {metric.statusBadge || "HELD-OUT"}
           </span>
         </div>
         <div>
-          <p className="font-mono text-2xl font-bold tracking-tight text-white/90">Unavailable</p>
+          <div className="flex items-baseline gap-2.5">
+            <p className="font-mono text-3xl font-bold tracking-tight text-white">{metric.value}</p>
+            {metric.delta && (
+              <span className={`font-mono text-xs font-semibold ${metric.isPositiveDelta ? "text-emerald-400" : "text-cyan-300"}`}>
+                {metric.delta}
+              </span>
+            )}
+          </div>
           <p className="mt-1 text-xs leading-relaxed text-neutral-300/70">{metric.sublabel}</p>
         </div>
       </div>
