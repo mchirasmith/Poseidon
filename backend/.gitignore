@@ -1,0 +1,9 @@
+data/
+artifacts/
+cache/
+.venv/
+__pycache__/
+*.pt
+*.onnx
+*.pyc
+.pytest_cache/
