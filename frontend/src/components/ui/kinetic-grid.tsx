@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, type ReactNode } from "react";
+import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 
 interface Point {
@@ -49,11 +50,18 @@ export default function KineticGrid({
   children,
   className,
   globalColor = "default",
+  staticGrid,
 }: {
   children?: ReactNode;
   className?: string;
   globalColor?: "default" | "monochrome";
+  staticGrid?: boolean;
 }) {
+  const pathname = usePathname();
+  const normalizedPath = pathname ? pathname.replace(/\/+$/, "") || "/" : "/";
+  const isLandingPage = normalizedPath === "/";
+  const isStatic = staticGrid !== undefined ? staticGrid : !isLandingPage;
+
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const mouseRef = useRef<Point>({ x: -9999, y: -9999 });
   const targetMouseRef = useRef<Point>({ x: -9999, y: -9999 });
@@ -133,8 +141,8 @@ export default function KineticGrid({
 
       const theme = {
         default: {
-          lineBase: { r: 13, g: 71, b: 161, a: 0.17 },
-          nodeBase: { r: 13, g: 71, b: 161, a: 0.22 },
+          lineBase: { r: 50, g: 130, b: 200, a: 0.18 },
+          nodeBase: { r: 60, g: 145, b: 215, a: 0.22 },
           lineActive: { r: 34, g: 211, b: 238, a: 0.9 },
           nodeActive: { r: 103, g: 232, b: 249, a: 1 },
           glow: "34,211,238",
@@ -153,10 +161,10 @@ export default function KineticGrid({
       const depthColor = (base: Color, y: number): Color => {
         const depth = Math.min(1, Math.max(0, y / H));
         return {
-          r: Math.round(lerpN(base.r, 255, depth)),
-          g: Math.round(lerpN(base.g, 255, depth)),
-          b: Math.round(lerpN(base.b, 255, depth)),
-          a: lerpN(base.a, globalColor === "default" ? 0.24 : 0.2, depth),
+          r: Math.round(lerpN(base.r, 220, depth * 0.6)),
+          g: Math.round(lerpN(base.g, 235, depth * 0.6)),
+          b: Math.round(lerpN(base.b, 255, depth * 0.6)),
+          a: lerpN(base.a, globalColor === "default" ? 0.22 : 0.2, depth),
         };
       };
 
@@ -164,11 +172,12 @@ export default function KineticGrid({
       ctx.clearRect(0, 0, W, H);
       const surface = ctx.createLinearGradient(0, 0, 0, H);
       if (globalColor === "default") {
-        surface.addColorStop(0, "#FFDDB0");
-        surface.addColorStop(0.24, "#E3F2FD");
-        surface.addColorStop(0.48, "#90CAF9");
-        surface.addColorStop(0.72, "#2196F3");
-        surface.addColorStop(1, "#0D47A1");
+        surface.addColorStop(0, "#9C6F42");
+        surface.addColorStop(0.20, "#9C6F42");
+        surface.addColorStop(0.48, "#1E577C");
+        surface.addColorStop(0.70, "#124370");
+        surface.addColorStop(0.88, "#0A2E59");
+        surface.addColorStop(1, "#04132B");
       } else {
         surface.addColorStop(0, "#000000");
         surface.addColorStop(1, "#000000");
@@ -176,7 +185,7 @@ export default function KineticGrid({
       ctx.fillStyle = surface;
       ctx.fillRect(0, 0, W, H);
       if (globalColor === "default") {
-        ctx.fillStyle = "rgba(2, 18, 36, 0.42)";
+        ctx.fillStyle = "rgba(1, 12, 28, 0.58)";
         ctx.fillRect(0, 0, W, H);
       }
 
@@ -296,11 +305,11 @@ export default function KineticGrid({
 
     function animate(now: number) {
       rafRef.current = null;
-      if (reducedMotionRef.current || !visibleRef.current) return;
+      if (isStatic || reducedMotionRef.current || !visibleRef.current) return;
 
       mouseRef.current.x = lerpN(mouseRef.current.x, targetMouseRef.current.x, LERP_SPEED);
       mouseRef.current.y = lerpN(mouseRef.current.y, targetMouseRef.current.y, LERP_SPEED);
-      draw(now);
+      draw(now, false);
       rafRef.current = requestAnimationFrame(animate);
     }
 
@@ -312,7 +321,7 @@ export default function KineticGrid({
     };
 
     const startAnimation = () => {
-      if (!reducedMotionRef.current && visibleRef.current && rafRef.current === null) {
+      if (!isStatic && !reducedMotionRef.current && visibleRef.current && rafRef.current === null) {
         rafRef.current = requestAnimationFrame(animate);
       }
     };
@@ -324,16 +333,16 @@ export default function KineticGrid({
       canvas.width = Math.floor(w * dpr);
       canvas.height = Math.floor(h * dpr);
       sizeRef.current = { w, h, dpr };
-      draw(performance.now(), reducedMotionRef.current);
+      draw(performance.now(), isStatic || reducedMotionRef.current);
     };
 
     const onPointerMove = (event: PointerEvent) => {
-      if (reducedMotionRef.current) return;
+      if (isStatic || reducedMotionRef.current) return;
       targetMouseRef.current = { x: event.clientX, y: event.clientY };
     };
 
     const onPointerDown = (event: PointerEvent) => {
-      if (reducedMotionRef.current) return;
+      if (isStatic || reducedMotionRef.current) return;
       ripplesRef.current.push({
         x: event.clientX,
         y: event.clientY,
@@ -347,7 +356,7 @@ export default function KineticGrid({
     const onVisibilityChange = () => {
       visibleRef.current = document.visibilityState === "visible";
       if (visibleRef.current) {
-        if (reducedMotionRef.current) draw(performance.now(), true);
+        if (isStatic || reducedMotionRef.current) draw(performance.now(), true);
         else startAnimation();
       } else {
         stopAnimation();
@@ -357,7 +366,7 @@ export default function KineticGrid({
     const motionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
     const onMotionPreferenceChange = () => {
       reducedMotionRef.current = motionQuery.matches;
-      if (reducedMotionRef.current) {
+      if (isStatic || reducedMotionRef.current) {
         stopAnimation();
         ripplesRef.current = [];
         draw(performance.now(), true);
@@ -368,23 +377,37 @@ export default function KineticGrid({
 
     reducedMotionRef.current = motionQuery.matches;
     visibleRef.current = document.visibilityState === "visible";
-    setSize();
+
+    if (isStatic) {
+      stopAnimation();
+      ripplesRef.current = [];
+      mouseRef.current = { x: -9999, y: -9999 };
+      targetMouseRef.current = { x: -9999, y: -9999 };
+      setSize();
+    } else {
+      setSize();
+      startAnimation();
+    }
+
     window.addEventListener("resize", setSize);
-    window.addEventListener("pointermove", onPointerMove, { passive: true });
-    window.addEventListener("pointerdown", onPointerDown, { passive: true });
+    if (!isStatic) {
+      window.addEventListener("pointermove", onPointerMove, { passive: true });
+      window.addEventListener("pointerdown", onPointerDown, { passive: true });
+    }
     document.addEventListener("visibilitychange", onVisibilityChange);
     motionQuery.addEventListener("change", onMotionPreferenceChange);
-    startAnimation();
 
     return () => {
       stopAnimation();
       window.removeEventListener("resize", setSize);
-      window.removeEventListener("pointermove", onPointerMove);
-      window.removeEventListener("pointerdown", onPointerDown);
+      if (!isStatic) {
+        window.removeEventListener("pointermove", onPointerMove);
+        window.removeEventListener("pointerdown", onPointerDown);
+      }
       document.removeEventListener("visibilitychange", onVisibilityChange);
       motionQuery.removeEventListener("change", onMotionPreferenceChange);
     };
-  }, [draw]);
+  }, [draw, isStatic]);
 
   return (
     <div
