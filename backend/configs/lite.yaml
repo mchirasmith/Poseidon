@@ -1,0 +1,22 @@
+model: lite
+years_train: [2014, 2016]
+window: 3
+tile: 64
+core: 48
+batch: 32
+steps: 10000
+lr: 2.0e-3
+weight_decay: 1.0e-4
+emb_dim: 32
+width: [32, 64, 96]
+decoder_width: [64, 48]
+attn_heads: 4
+depth_tokens: 8
+loss: {nll: 1.0, vgrad: 0.3, thermocline_w: 1.5}
+device: mps
+in_ram: true
+eval_every: 1000
+ema_decay: 0.999
+min_wet_frac: 0.2
+cal_days: 30
+eval_tiles: 200
