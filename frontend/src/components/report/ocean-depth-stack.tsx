@@ -18,9 +18,33 @@ import { OCEAN_DEPTH_LAYERS, type OceanDepthLayer } from "@/lib/ocean-layers-dat
 type ViewMode = "stack" | "flat";
 type MetricMode = "temp" | "rmse" | "anomaly";
 
-export function OceanDepthStack() {
+export interface OceanDepthStackProps {
+  selectedIndex?: number;
+  onSelectIndex?: (index: number) => void;
+}
+
+export function OceanDepthStack({
+  selectedIndex: controlledIndex,
+  onSelectIndex,
+}: OceanDepthStackProps = {}) {
   const prefersReducedMotion = useReducedMotion();
-  const [selectedIndex, setSelectedIndex] = useState<number>(7); // Default to 100m (thermocline / D20)
+  const [internalIndex, setInternalIndex] = useState<number>(7); // Default to 100m (thermocline / D20)
+  const isControlled = controlledIndex !== undefined;
+  const selectedIndex = isControlled ? controlledIndex : internalIndex;
+
+  const setSelectedIndex = useCallback(
+    (updater: number | ((prev: number) => number)) => {
+      const nextVal = typeof updater === "function" ? updater(selectedIndex) : updater;
+      if (onSelectIndex) {
+        onSelectIndex(nextVal);
+      }
+      if (!isControlled) {
+        setInternalIndex(nextVal);
+      }
+    },
+    [isControlled, selectedIndex, onSelectIndex]
+  );
+
   const [viewMode, setViewMode] = useState<ViewMode>("stack");
   const [metricMode, setMetricMode] = useState<MetricMode>("temp");
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
@@ -249,10 +273,10 @@ export function OceanDepthStack() {
 
           {/* Perspective 3D Container */}
           <div
-            className="relative my-auto flex items-center justify-center w-[300px] h-[210px] sm:w-[380px] sm:h-[250px]"
+            className="relative mb-auto mt-6 flex items-center justify-center w-[300px] h-[210px] sm:w-[380px] sm:h-[250px]"
             style={{
               perspective: "1200px",
-              perspectiveOrigin: "50% 48%",
+              perspectiveOrigin: "50% 45%",
             }}
           >
             <div
@@ -261,8 +285,8 @@ export function OceanDepthStack() {
                 transformStyle: "preserve-3d",
                 transform:
                   viewMode === "flat"
-                    ? "none"
-                    : "rotateX(58deg) rotateZ(-28deg) translateY(6px)",
+                    ? "translateY(-12px)"
+                    : "rotateX(58deg) rotateZ(-28deg) translateY(-22px)",
               }}
             >
               {OCEAN_DEPTH_LAYERS.map((layer, index) => {

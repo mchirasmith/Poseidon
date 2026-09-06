@@ -59,8 +59,7 @@ export default function KineticGrid({
 }) {
   const pathname = usePathname();
   const normalizedPath = pathname ? pathname.replace(/\/+$/, "") || "/" : "/";
-  const isLandingPage = normalizedPath === "/";
-  const isStatic = staticGrid !== undefined ? staticGrid : !isLandingPage;
+  const isStatic = staticGrid !== undefined ? staticGrid : false;
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const mouseRef = useRef<Point>({ x: -9999, y: -9999 });
