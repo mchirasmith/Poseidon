@@ -66,7 +66,7 @@ Orchestration
 ## Scope
 
 In
-- Everything in the functional requirements above, for the lite year range 2014 to 2020.
+- Everything in the functional requirements above, for the lite year range 2016 to 2020.
 - Synthetic data path and a test suite built on it.
 - Makefile targets and the one-shot runner script.
 - Dockerfile for the API.
@@ -224,6 +224,11 @@ Blast radius: 2 existing docs changed, ~10 new files, 0 frontend files.
   `poseidon_p90`) and the inputs key is `wind`, because the frontend examples are the contract.
 - Grid size and date range are read from the store, never hard-coded, so tests run on a small grid.
 - The CF compliance checker is a manual target, not a CI test.
+- GLORYS is downloaded as the 0.25 degree ensemble-mean member `cmems_mod_glo_phy-all_my_0.25deg_P1D-m`
+  (variable `thetao_glor`, depth-subset to 1100 m), not the native 1/12 degree product, because that
+  transfer was ~100 GB for this bbox and period.
+- Each monthly download retries with a backoff wait on failure (`pipeline/run.py`), since Copernicus
+  and PO.DAAC both throttle or drop connections over a multi-hour run.
 
 ## Testing cases
 

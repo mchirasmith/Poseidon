@@ -37,6 +37,8 @@ DEFAULT_GRID = Grid(GRID_LAT, GRID_LON)
 
 DEPTHS_M = np.array(STANDARD_DEPTHS_M, dtype=np.float32)
 GLORYS_MAX_DEPTH_M = 1100.0
+DOWNLOAD_RETRIES = 4
+DOWNLOAD_RETRY_WAIT_S = 60
 TARGET_SHALLOW_CLAMP_TOL_M = 1.0  # a standard depth this close above the shallowest source sample takes that sample
 
 # calendar / splits
@@ -122,9 +124,9 @@ PRODUCTS: dict[str, object] = {
     ),
     "glorys": CopernicusProduct(
         name="glorys",
-        dataset_id="cmems_mod_glo_phy_my_0.083deg_P1D-m",
-        variables=["thetao"],
-        source_step_deg=1 / 12,
+        dataset_id="cmems_mod_glo_phy-all_my_0.25deg_P1D-m",
+        variables=["thetao_glor"],
+        source_step_deg=0.25,
     ),
     "cur": PodaacProduct(
         name="cur",

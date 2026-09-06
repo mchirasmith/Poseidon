@@ -79,7 +79,7 @@ def predict_lite(store: Store, lite: dict, t: int, window: int) -> tuple[np.ndar
     anomaly = np.empty_like(mean_n)
     sigma = np.empty_like(sigma_n)
     for d in range(mean_n.shape[0]):
-        _, std = y_norm(store, d)
-        anomaly[d] = mean_n[d] * std
+        mean_z, std = y_norm(store, d)
+        anomaly[d] = mean_n[d] * std + mean_z
         sigma[d] = sigma_n[d] * std
     return anomaly + clim, sigma, anomaly, emb

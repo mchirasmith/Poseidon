@@ -1,5 +1,5 @@
 model: lite
-years_train: [2014, 2016]
+years_train: [2016, 2016]
 window: 3
 tile: 64
 core: 48

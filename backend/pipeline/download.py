@@ -57,27 +57,35 @@ def credentials_instructions(needed: set[str] | None = None) -> str:
     return "\n".join(lines)
 
 
-def _load_manifest(raw_dir: Path) -> dict:
-    path = raw_dir / MANIFEST_NAME
+def _manifest_path(base_dir: Path, product: str) -> Path:
+    return base_dir / product / MANIFEST_NAME
+
+
+def _load_manifest(base_dir: Path, product: str) -> dict:
+    path = _manifest_path(base_dir, product)
     if path.exists():
         return json.loads(path.read_text())
     return {"completed": []}
 
 
-def _save_manifest(raw_dir: Path, manifest: dict) -> None:
-    (raw_dir / MANIFEST_NAME).write_text(json.dumps(manifest, indent=2))
+def _save_manifest(base_dir: Path, product: str, manifest: dict) -> None:
+    # One manifest per product, written via rename, so parallel product downloads never clobber each other.
+    path = _manifest_path(base_dir, product)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text(json.dumps(manifest, indent=2))
+    tmp.replace(path)
 
 
-def is_done(raw_dir: Path, product: str, month: str) -> bool:
-    manifest = _load_manifest(raw_dir)
-    return [product, month] in manifest["completed"]
+def is_done(base_dir: Path, product: str, month: str) -> bool:
+    return month in _load_manifest(base_dir, product)["completed"]
 
 
-def mark_done(raw_dir: Path, product: str, month: str) -> None:
-    manifest = _load_manifest(raw_dir)
-    if [product, month] not in manifest["completed"]:
-        manifest["completed"].append([product, month])
-    _save_manifest(raw_dir, manifest)
+def mark_done(base_dir: Path, product: str, month: str) -> None:
+    manifest = _load_manifest(base_dir, product)
+    if month not in manifest["completed"]:
+        manifest["completed"].append(month)
+    _save_manifest(base_dir, product, manifest)
 
 
 def _month_range(year: int, month: int) -> tuple[str, str]:
@@ -218,3 +226,25 @@ def download_argo_profiles(index: pd.DataFrame, raw_dir: Path) -> list[Path]:
             dest.write_bytes(resp.content)
         paths.append(dest)
     return paths
+
+
+def main() -> None:
+    """`--check`: exit 1 with setup instructions if either service's credentials are missing."""
+    import argparse
+    import sys
+
+    p = argparse.ArgumentParser()
+    p.add_argument("--check", action="store_true")
+    args = p.parse_args()
+    if not args.check:
+        return
+    status = credentials_status()
+    missing = {s for s, ok in status.items() if not ok}
+    if missing:
+        print(credentials_instructions(missing))
+        sys.exit(1)
+    print("credentials ok")
+
+
+if __name__ == "__main__":
+    main()

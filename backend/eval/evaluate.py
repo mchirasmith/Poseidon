@@ -1,21 +1,17 @@
 """One evaluation harness for climatology, gbm and lite on the test split; writes report.json/.md."""
 from __future__ import annotations
 
-# torch and lightgbm each bundle a conflicting OpenMP runtime on macOS, so this module never imports torch.
 import argparse
 import json
 from pathlib import Path
 
-import lightgbm as lgb
 import numpy as np
-import onnxruntime as ort
 import pandas as pd
-import yaml
 
 from app.services.derived import d20, d26, mld
 from eval import metrics as M
-from model.dataset import Store, full_domain_batch
-from model.features import build_features
+from model.dataset import Store
+from model.infer import load_gbm, load_lite, predict_climatology, predict_gbm, predict_lite
 from pipeline.sources import DEPTHS_M, SPLIT_TEST
 
 BASINS = ["overall", "arabian_sea", "bay_of_bengal"]
@@ -23,60 +19,6 @@ SEASONS = ["all", "DJF", "MAM", "JJAS", "ON"]
 THERMOCLINE_MIN_M, THERMOCLINE_MAX_M = 50.0, 200.0
 DEPTH_100M_IDX = int(np.where(DEPTHS_M == 100.0)[0][0])
 MAX_ARGO_ROWS = 20000
-
-
-def _y_norm(store: Store, depth_idx: int) -> tuple[float, float]:
-    entry = store.norm.get(f"y_depth_{int(DEPTHS_M[depth_idx])}", {"mean": 0.0, "std": 1.0})
-    return float(entry["mean"]), float(entry["std"])
-
-
-def _full_field(h: int, w: int, ii: np.ndarray, jj: np.ndarray, values: np.ndarray) -> np.ndarray:
-    """(15, H, W) filled with NaN outside the given ocean cells; values is (n_cells, 15)."""
-    out = np.full((values.shape[1], h, w), np.nan, dtype=np.float32)
-    out[:, ii, jj] = values.T
-    return out
-
-
-def predict_climatology(store: Store, t: int) -> np.ndarray:
-    doy_idx = (store.doy[t] - 1) % 366
-    return np.asarray(store.clim_y[doy_idx], dtype=np.float32)
-
-
-def load_gbm(art_dir: Path) -> dict:
-    out_dir = art_dir / "gbm"
-    spec = json.loads((out_dir / "feature_spec.json").read_text())
-    boosters = [lgb.Booster(model_file=str(out_dir / f"depth_{int(d):02d}.txt")) for d in spec["depths_m"]]
-    return {"boosters": boosters}
-
-
-def predict_gbm(store: Store, gbm: dict, t: int) -> np.ndarray:
-    feats, (ii, jj) = build_features(store, t)
-    clim = predict_climatology(store, t)
-    preds = np.stack([b.predict(feats) for b in gbm["boosters"]], axis=1)  # (n_cells, 15)
-    for d in range(preds.shape[1]):
-        mean, std = _y_norm(store, d)
-        preds[:, d] = preds[:, d] * std + mean
-    anomaly = _full_field(store.H, store.W, ii, jj, preds)
-    return anomaly + clim
-
-
-def load_lite(art_dir: Path) -> dict:
-    onnx_path = art_dir / "lite" / "poseidon-lite.onnx"
-    return {"session": ort.InferenceSession(str(onnx_path))}
-
-
-def predict_lite(store: Store, lite: dict, t: int, window: int) -> tuple[np.ndarray, np.ndarray]:
-    x, s, h, w = full_domain_batch(store, t, window)
-    mean_n, sigma_n, _ = lite["session"].run(None, {"x": x.astype(np.float32), "static": s.astype(np.float32)})
-    mean_n, sigma_n = mean_n[0, :, :h, :w], sigma_n[0, :, :h, :w]
-    clim = predict_climatology(store, t)
-    mean = np.empty_like(mean_n)
-    sigma = np.empty_like(sigma_n)
-    for d in range(mean_n.shape[0]):
-        _, std = _y_norm(store, d)
-        mean[d] = mean_n[d] * std
-        sigma[d] = sigma_n[d] * std
-    return mean + clim, sigma
 
 
 def _depth_metric(fn, pred, true, mask, basin_mask2d, season_mask1d):
@@ -88,10 +30,9 @@ def _depth_metric(fn, pred, true, mask, basin_mask2d, season_mask1d):
     return out
 
 
-def evaluate(data_dir: str, art_dir: str, models: list[str], lite_cfg_path: str = "configs/lite.yaml") -> dict:
+def evaluate(data_dir: str, art_dir: str, models: list[str], device: str = "cpu") -> dict:
     data_dir, art_dir = Path(data_dir), Path(art_dir)
     store = Store.open(data_dir / "poseidon.zarr")
-    lite_cfg = yaml.safe_load(Path(lite_cfg_path).read_text()) if "lite" in models else {}
 
     test_days = np.where(store.split == SPLIT_TEST)[0]
     lat2d = np.broadcast_to(store.lat[:, None], (store.H, store.W))
@@ -100,7 +41,8 @@ def evaluate(data_dir: str, art_dir: str, models: list[str], lite_cfg_path: str 
     bob_mask2d = M.basin_mask(lon2d, "bay_of_bengal")
 
     gbm = load_gbm(art_dir) if "gbm" in models else None
-    lite = load_lite(art_dir) if "lite" in models else None
+    lite = load_lite(art_dir, device) if "lite" in models else None
+    window = int(lite["session"].get_inputs()[0].shape[1]) if lite is not None else 0
 
     true_stack, clim_stack, mask_stack, season_labels = [], [], [], []
     pred_stack = {m: [] for m in models}
@@ -122,11 +64,11 @@ def evaluate(data_dir: str, art_dir: str, models: list[str], lite_cfg_path: str 
             preds_here["climatology"] = clim
             pred_stack["climatology"].append(clim)
         if "gbm" in models:
-            p = predict_gbm(store, gbm, int(t))
+            p, _ = predict_gbm(store, gbm, int(t))
             preds_here["gbm"] = p
             pred_stack["gbm"].append(p)
         if "lite" in models:
-            p, sig = predict_lite(store, lite, int(t), lite_cfg["window"])
+            p, sig, _, _ = predict_lite(store, lite, int(t), window)
             preds_here["lite"] = p
             pred_stack["lite"].append(p)
             sigma_stack.append(sig)
@@ -293,9 +235,10 @@ def main() -> None:
     p.add_argument("--data-dir", default="data")
     p.add_argument("--art-dir", default="artifacts")
     p.add_argument("--models", default="climatology,gbm,lite")
+    p.add_argument("--device", default="cpu")
     args = p.parse_args()
     models = [m.strip() for m in args.models.split(",") if m.strip()]
-    report = evaluate(args.data_dir, args.art_dir, models)
+    report = evaluate(args.data_dir, args.art_dir, models, args.device)
     write_report(report, args.data_dir)
 
 

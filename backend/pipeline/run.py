@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import time
 import sys
 from pathlib import Path
 
@@ -14,6 +15,8 @@ from pipeline import argo_matchups
 from pipeline import split as split_stage
 from pipeline.sources import (
     DEFAULT_GRID,
+    DOWNLOAD_RETRIES,
+    DOWNLOAD_RETRY_WAIT_S,
     DEPTHS_M,
     PRODUCTS,
     SPLIT_TRAIN,
@@ -49,6 +52,18 @@ def _check_credentials(products: list[str]) -> None:
         sys.exit(1)
 
 
+def _download_with_retry(product, year: int, month: int, raw_dir: Path) -> Path:
+    fetch = download.download_copernicus_month if product.kind == "copernicus" else download.download_podaac_month
+    for attempt in range(DOWNLOAD_RETRIES):
+        try:
+            return fetch(product, year, month, raw_dir)
+        except Exception as exc:  # network errors are transient; the last attempt re-raises
+            if attempt == DOWNLOAD_RETRIES - 1:
+                raise
+            print(f"{product.name} {year}-{month:02d}: {exc.__class__.__name__}, retry in {DOWNLOAD_RETRY_WAIT_S * (attempt + 1)} s")
+            time.sleep(DOWNLOAD_RETRY_WAIT_S * (attempt + 1))
+
+
 def _download_and_regrid(products: list[str], year0: int, year1: int, raw_dir: Path, interim_dir: Path, grid: Grid) -> None:
     for name in products:
         product = PRODUCTS[name]
@@ -57,10 +72,7 @@ def _download_and_regrid(products: list[str], year0: int, year1: int, raw_dir: P
                 month_key = f"{year:04d}-{month:02d}"
                 if download.is_done(interim_dir, name, month_key):
                     continue
-                if product.kind == "copernicus":
-                    raw_path = download.download_copernicus_month(product, year, month, raw_dir)
-                else:
-                    raw_path = download.download_podaac_month(product, year, month, raw_dir)
+                raw_path = _download_with_retry(product, year, month, raw_dir)
                 interim.regrid_month(name, raw_path, interim_dir, month_key, grid)
                 download.mark_done(interim_dir, name, month_key)
                 if name == "glorys":

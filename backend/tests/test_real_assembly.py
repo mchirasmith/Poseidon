@@ -81,7 +81,9 @@ def _sla_ds(year: int, month: int, has_data: bool) -> xr.Dataset:
 
 
 def _glorys_ds(year: int, month: int, has_data: bool) -> xr.Dataset:
-    lat, lon = _raw_axis(1 / 12)
+    # The 0.25 deg ensemble member has cell centres on whole quarter degrees, offset from the target x.125 grid.
+    lat, lon = _raw_axis(0.25)
+    lat, lon = lat - 0.125, lon - 0.125
     time = _month_time(year, month)
     shape = (len(time), len(NATIVE_DEPTHS), len(lat), len(lon))
     if has_data:
@@ -92,7 +94,7 @@ def _glorys_ds(year: int, month: int, has_data: bool) -> xr.Dataset:
     else:
         thetao = np.full(shape, np.nan, dtype=np.float32)
     return xr.Dataset(
-        {"thetao": (("time", "depth", "latitude", "longitude"), thetao)},
+        {"thetao_glor": (("time", "depth", "latitude", "longitude"), thetao)},
         coords={"time": time, "depth": NATIVE_DEPTHS, "latitude": lat, "longitude": lon},
     )
 

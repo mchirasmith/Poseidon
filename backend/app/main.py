@@ -27,6 +27,8 @@ def create_app(backend: Backend | None = None, settings: Settings | None = None)
     app = FastAPI(title="Poseidon API")
     app.state.settings = settings
     app.state.backend = backend
+    if hasattr(backend, "engine"):
+        backend.engine.warm_up()
 
     app.add_middleware(
         CORSMiddleware,

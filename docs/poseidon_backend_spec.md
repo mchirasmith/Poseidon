@@ -113,7 +113,7 @@ backend/
 |---|---|---|
 | `POSEIDON_DATA_DIR` | `./data` | zarr, parquet, report, cache |
 | `POSEIDON_ART_DIR` | `./artifacts` | onnx, gbm, scales, model cards |
-| `POSEIDON_MODEL` | `full` | `lite`, `full` |
+| `POSEIDON_MODEL` | `lite` | `lite`, `full`; `lite` is the only model trained in this delivery |
 | `POSEIDON_ENABLE_GBM` | `true` | serve gbm as comparison layer |
 | `POSEIDON_DEVICE` | `cpu` | onnxruntime provider: `cpu`, `cuda`, `coreml` |
 | `POSEIDON_CORS_ORIGINS` | `*` | comma list |
@@ -206,7 +206,7 @@ flowchart TD
   B --> C["regrid.py<br/>conservative to 0.25 deg<br/>no cross-land averaging"]
   C --> D["align.py<br/>daily master axis 1993-01-01 .. 2020-12-31<br/>CCMP 6h -> daily mean"]
   D --> E["masks.py<br/>wet mask from GLORYS<br/>per-level bottom mask<br/>per-day modality masks"]
-  D --> F["target.py<br/>GLORYS 50 levels -> 15 std depths<br/>linear in depth"]
+  D --> F["target.py<br/>GLORYS levels, depth-subset to 1100 m -> 15 std depths<br/>linear in depth"]
   E --> G["split.py<br/>train 1993-2016, dev 2017, cal 2018, test 2019-2020<br/>8-day purge"]
   F --> G
   G --> H["climatology.py<br/>harmonic fit per cell per var per depth<br/>train years only"]
@@ -219,7 +219,8 @@ flowchart TD
 
 - Cell centres: lat 5.125 .. 29.875 (100), lon 45.125 .. 104.875 (240).
 - Download with a 1 deg margin, regrid, then crop. Margin avoids edge artefacts.
-- Regridding: `xesmf` conservative for finer-to-coarser (OSTIA, SSS, GLORYS). For OSCAR/DUACS/CCMP on 0.25 deg, verify centre convention; bilinear only if offset. Land cells are excluded from source averages (mask before regrid) so coastal cells are not contaminated.
+- Regridding: masked block means for finer-than-target sources (OSTIA, SSS, DUACS at 0.125 deg); bilinear resampling for sources already on a 0.25 deg grid, from whole-quarter-degree centres to the target's x.125 cell centres (GLORYS, OSCAR, CCMP). The conservative `xesmf` path was dropped. Land cells are excluded from source averages (mask before regrid) so coastal cells are not contaminated.
+- GLORYS: the 0.25 deg ensemble-mean member `cmems_mod_glo_phy-all_my_0.25deg_P1D-m`, variable `thetao_glor`, depth-subset to 1100 m before regridding. Switched from the native 1/12 deg `thetao` product because that transfer was ~100 GB for this bbox and period.
 
 ### 2.3 Zarr schema (`data/poseidon.zarr`)
 
@@ -240,7 +241,7 @@ flowchart TD
 | `clim_y` | (366, 15, 100, 240) | float16 | daily climatology, target |
 | `norm` | attrs | json | mean/std per channel and depth |
 
-Chunks: `(32, all, 100, 240)` on time. Size: `x` 7 GB, `y` and `y_raw` 7 GB each, clim 0.5 GB. Total ~22 GB. Lite subset (`--years 2014-2020`) ~5.5 GB.
+Chunks: `(32, all, 100, 240)` on time. Size: `x` 7 GB, `y` and `y_raw` 7 GB each, clim 0.5 GB. Total ~22 GB. Lite subset (`--years 2016-2020`) ~4 GB.
 
 ### 2.4 Climatology
 
@@ -260,7 +261,7 @@ Five coefficients, least squares. Evaluate for 366 days, store as `clim_*`. Anom
 
 ### 2.6 Timing (8-core laptop, 1 Gbps)
 
-| Step | Full 1993-2020 | Lite 2014-2020 |
+| Step | Full 1993-2020 | Lite 2016-2020 |
 |---|---|---|
 | Download | 6 to 12 h (bandwidth bound, ~60 GB raw) | 2 to 3 h |
 | Regrid + align | 2 to 3 h | 40 min |
@@ -312,7 +313,7 @@ flowchart LR
 | tile / core | 64 / 48 | 96 / 80 |
 | tiles per day | 15 | 12 |
 | window k | 3 | 9 |
-| in-RAM | yes, fp16 numpy (~2 GB for 2014-2016) | zarr streaming, 8 workers |
+| in-RAM | yes, fp16 numpy (~0.7 GB for 2016) | zarr streaming, 8 workers |
 
 ### 3.3 poseidon-gbm
 
@@ -327,7 +328,7 @@ Target: normalised GLORYS anomaly at each of 15 depths, one booster each.
 
 | | lite rows | full rows |
 |---|---|---|
-| Training days | 2014-2016 | 1993-2016 |
+| Training days | 2016 | 1993-2016 |
 | Row subsample | 2 M random ocean cells | 12 M |
 | Trees / leaves / lr | 500 / 63 / 0.05 | 1200 / 127 / 0.03 |
 | Time, 8-core CPU | ~20 s per depth, 5 min total | ~5 min per depth, 75 min total |
@@ -362,7 +363,7 @@ flowchart LR
 `configs/lite.yaml`
 ```yaml
 model: lite
-years_train: [2014, 2016]
+years_train: [2016, 2016]
 window: 3
 tile: 64
 core: 48
@@ -452,10 +453,14 @@ sequenceDiagram
   R->>M: full-domain forward, 100 x 240, single pass
   M-->>R: mean_n, sigma_n, factors, embedding
   R->>P: de-normalise, add clim_y -> deg C
-  P->>P: sigma *= alpha_z, apply wet and bottom masks -> NaN
+  P->>P: apply wet and bottom masks -> NaN
   P->>P: anomaly = mean - clim_y ; error = mean - y_raw (test days only)
   P-->>R: dict of arrays (15,100,240) per mode + embedding
 ```
+
+The per-depth calibration alphas from `calibrate.py` are baked into the exported ONNX graph
+(see `model/export.py`'s `ExportWrapper`), so the ONNX sigma output is already calibrated and
+`inference.py` never re-scales it.
 
 Latency, full domain:
 
@@ -526,8 +531,8 @@ flowchart LR
 ### 4.3 Tiles
 
 - 240 x 100 RGBA PNG, one pixel per cell, no interpolation.
-- Colour from `scales.json`: `{mode: {cmap, vmin, vmax}}`; `cmap` is 256 RGB stops. Land alpha 0. Below-seafloor: 50% grey with a 2 px diagonal hatch pattern.
-- Paths: `cache/<date>/<model>/{mean,sigma,anom,error}/z{00..14}.png`, inputs at `cache/<date>/in/{sst,sss,sla,cur,wnd}_t{-8..0}.png`.
+- Colour from `scales.json`: `{mode: {cmap, vmin, vmax}}`; `cmap` is 256 RGB stops. Land alpha 0. Below-seafloor: an opaque two-tone grey diagonal hatch, one pixel per cell (no PNG-level pattern tiling).
+- Paths: `cache/<date>/<model>/{mean,sigma,anom,error}/z{00..14}.png`, inputs at `cache/<date>/in/{sst,sss,sla,cur,wind}_t{-8..0}.png`.
 - `meta.json` per date: runtime, model card ref, per-mode ranges, per-depth ranges, tile list, nc filename.
 
 ### 4.4 Response schemas (pydantic, summarised)
@@ -538,8 +543,8 @@ flowchart LR
 | `Report` | headline, by_depth{model}{metric}{basin}{season}[15], maps{depth}{rmse,bias}: tile url, argo_scatter, calibration, tables, learning_curve |
 | `RunStart` | job_id, cached |
 | `RunStatus` | state, stage, elapsed_ms, message |
-| `Day` | date, model, cached_at, runtime_ms, inputs{var: tile, range, missing_fraction, history[]}, layers{mode: [15 urls]}, scales, per_depth_scales, netcdf_url |
-| `Profile` | lat, lon, depths_m, mean, p10, p90, glorys, gbm (optional), argo or null, scalars{d20_m, d26_m, mld_m, rmse_glorys, rmse_argo} |
+| `Day` | date, model, cached_at, runtime_ms, inputs{var: tile, range, missing_fraction, history[]} keyed by `sst, sss, sla, cur, wind`, layers{mode: [15 urls]}, scales, per_depth_scales, netcdf_url |
+| `Profile` | lat, lon, depths_m, poseidon_mean, poseidon_p10, poseidon_p90, glorys, gbm (optional), argo or null, scalars{d20_m, d26_m, mld_m, rmse_glorys, rmse_argo} |
 | `Section` | distances_km, lats, lons, depths_m, model[n][15], glorys, sigma, d20_m[n], mld_m[n], argo_markers |
 
 Full JSON examples live in `poseidon_frontend_spec.md` section 11 and are the single source of truth; pydantic models are generated to match.
@@ -572,7 +577,7 @@ Full JSON examples live in `poseidon_frontend_spec.md` section 11 and are the si
 ## Appendix A: repo commands
 
 ```
-make data-lite        # download + preprocess 2014-2020
+make data-lite        # download + preprocess 2016-2020
 make data-full        # 1993-2020
 make gbm CFG=lite     # 5 min
 make nn CFG=lite      # ~25 min on M4
@@ -583,6 +588,8 @@ make eval             # report.json, cache, fallback fixtures
 make api              # uvicorn app.main:create_app --factory
 make mock             # uvicorn mock:app
 make test
+make all               # scripts/run_all.py: data -> gbm -> nn -> calibrate -> export -> eval -> precompute
+make all-synthetic     # same, on the no-network synthetic generator and configs/tiny.yaml
 ```
 
 ## Appendix B: known limits, stated in the model card

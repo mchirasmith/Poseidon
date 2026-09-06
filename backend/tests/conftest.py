@@ -37,3 +37,29 @@ def synthetic_store(tmp_path_factory) -> Path:
     # 2015-01-01..2016-12-31 gives two full train years, so per-cell climatology has full-month coverage
     synthetic.generate(out_dir, "2015-01-01", "2019-03-31", 12, 24, seed=7)
     return out_dir
+
+
+@pytest.fixture(scope="session")
+def synthetic_trained_lite(tmp_path_factory) -> tuple[Path, Path]:
+    """Synthetic store + a tiny trained/exported poseidon-lite, built via subprocess stages.
+
+    Runs as subprocesses (like scripts/run_all.py) so torch never shares this pytest
+    process with any other test module that imports it.
+    """
+    import subprocess
+    import sys
+
+    root = tmp_path_factory.mktemp("lite_engine")
+    data_dir, art_dir = root / "data", root / "art"
+    backend_dir = Path(__file__).resolve().parent.parent
+    cmd = [
+        sys.executable, "scripts/run_all.py", "--synthetic",
+        "--cfg", "configs/tiny.yaml",
+        "--data-dir", str(data_dir), "--art-dir", str(art_dir),
+        "--start", "2015-01-01", "--end", "2019-03-31",
+        "--ny", "12", "--nx", "16", "--seed", "5",
+        "--only", "data,nn,calibrate,export_lite",
+    ]
+    result = subprocess.run(cmd, cwd=backend_dir, capture_output=True, text=True, timeout=90)
+    assert result.returncode == 0, result.stdout[-4000:] + result.stderr[-4000:]
+    return data_dir, art_dir

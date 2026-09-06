@@ -37,7 +37,7 @@ def _load_sla(ds: xr.Dataset) -> xr.DataArray:
 
 
 def _load_glorys(ds: xr.Dataset) -> xr.DataArray:
-    return qc.range_check(ds["thetao"], "thetao").rename("thetao")
+    return qc.range_check(ds["thetao_glor"], "thetao").rename("thetao")
 
 
 def _load_cur(ds: xr.Dataset) -> xr.Dataset:
