@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useRef, useState, useMemo } from "react";
-import { Layers, Move, Navigation, Sliders } from "lucide-react";
+import { motion, useReducedMotion } from "framer-motion";
+import { Moon, Move, Navigation, Satellite, Sliders, Waves } from "lucide-react";
 import { OCEAN_DEPTHS_M } from "@/lib/depths";
 import {
   TRANSECT_PRESETS,
@@ -20,6 +21,12 @@ interface TransectMapProps {
 }
 
 type BasemapType = "bathymetry" | "satellite" | "dark";
+
+const BASEMAPS: { id: BasemapType; label: string; icon: typeof Waves }[] = [
+  { id: "bathymetry", label: "Ocean Bathymetry", icon: Waves },
+  { id: "satellite", label: "Satellite Earth", icon: Satellite },
+  { id: "dark", label: "Dark Tactical", icon: Moon },
+];
 
 // Precision Web Mercator Projection for the North Indian Ocean
 // Bounding box: 45°E - 105°E, 4°N - 30°N
@@ -120,6 +127,7 @@ export function TransectMap({
   const svgRef = useRef<SVGSVGElement | null>(null);
   const [activeHandle, setActiveHandle] = useState<"A" | "B" | null>(null);
   const [basemap, setBasemap] = useState<BasemapType>("bathymetry");
+  const prefersReducedMotion = useReducedMotion();
   const [cursorPos, setCursorPos] = useState<TransectCoordinate | null>(null);
 
   const { x: ax, y: ay } = coord2svg(a.lat, a.lon);
@@ -219,29 +227,59 @@ export function TransectMap({
 
         {/* Right: Map Type Switcher & Presets */}
         <div className="flex flex-wrap items-center gap-2">
-          {/* Basemap Style Switcher */}
-          <div className="flex items-center gap-1 rounded-xl border border-white/15 bg-slate-950/70 p-1 shadow-[inset_0_1px_1px_rgba(255,255,255,0.12)] backdrop-blur-md">
-            <Layers size={13} className="text-white/40 ml-1.5 mr-0.5" />
-            {(
-              [
-                { id: "bathymetry", label: "Ocean Bathymetry" },
-                { id: "satellite", label: "Satellite Earth" },
-                { id: "dark", label: "Dark Tactical" },
-              ] as const
-            ).map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => setBasemap(item.id)}
-                className={`rounded-lg px-2.5 py-1 font-mono text-[11px] transition-all ${
-                  basemap === item.id
-                    ? "border border-cyan-400/40 bg-cyan-500/20 font-semibold text-cyan-200 shadow-[0_0_10px_rgba(34,211,238,0.3)]"
-                    : "text-white/50 hover:bg-white/5 hover:text-white"
-                }`}
-              >
-                {item.label}
-              </button>
-            ))}
+          {/* Basemap Style Switcher: Compact Limelight Navbar */}
+          <div
+            role="tablist"
+            aria-label="Basemap styles"
+            className="relative inline-flex items-center gap-0.5 rounded-xl border border-white/15 bg-slate-950/70 p-1 shadow-[0_8px_20px_rgba(0,0,0,0.35),inset_0_1px_0_rgba(255,255,255,0.16)] backdrop-blur-xl"
+          >
+            {BASEMAPS.map((item) => {
+              const Icon = item.icon;
+              const isActive = basemap === item.id;
+              return (
+                <div key={item.id} className="relative group/tooltip flex items-center justify-center">
+                  <button
+                    type="button"
+                    role="tab"
+                    onClick={() => setBasemap(item.id)}
+                    aria-label={item.label}
+                    aria-selected={isActive}
+                    className="relative z-10 grid size-8.5 sm:size-9 place-items-center rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-white/50"
+                  >
+                    {isActive && (
+                      <motion.span
+                        aria-hidden="true"
+                        className="pointer-events-none absolute inset-x-1 top-0 h-0.5 rounded-full bg-white shadow-[0_8px_16px_rgba(255,255,255,0.95)]"
+                        layoutId="basemap-limelight-beam"
+                        transition={
+                          prefersReducedMotion
+                            ? { duration: 0 }
+                            : { type: "spring", stiffness: 380, damping: 30 }
+                        }
+                      >
+                        <span className="absolute left-[-30%] top-0.5 h-7 w-[160%] bg-gradient-to-b from-white/35 via-white/10 to-transparent [clip-path:polygon(10%_100%,28%_0,72%_0,90%_100%)]" />
+                      </motion.span>
+                    )}
+                    <Icon
+                      size={17}
+                      className={
+                        isActive
+                          ? "text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.85)]"
+                          : "text-white/50 transition-colors hover:text-white/80"
+                      }
+                      strokeWidth={isActive ? 2.2 : 1.8}
+                    />
+                    <span className="sr-only">{item.label}</span>
+                  </button>
+
+                  {/* Instant floating hover tooltip */}
+                  <div className="pointer-events-none absolute bottom-full mb-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-lg border border-white/20 bg-slate-950/95 px-2.5 py-1 text-[11px] font-mono font-semibold text-white opacity-0 shadow-[0_8px_20px_rgba(0,0,0,0.5)] backdrop-blur-xl transition-all duration-150 group-hover/tooltip:opacity-100 group-hover/tooltip:-translate-y-0.5 z-40">
+                    <span>{item.label}</span>
+                    <div className="absolute left-1/2 -bottom-1 -translate-x-1/2 size-2 rotate-45 border-b border-r border-white/20 bg-slate-950" />
+                  </div>
+                </div>
+              );
+            })}
           </div>
 
           {/* Presets dropdown */}

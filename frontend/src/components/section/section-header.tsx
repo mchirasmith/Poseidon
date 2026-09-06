@@ -1,7 +1,10 @@
 "use client";
 
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, ChevronLeft, ChevronRight } from "lucide-react";
+import { format } from "date-fns";
+import { ArrowLeft, CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
+import { GlassCalendar } from "@/components/ui/glass-calendar";
 import type { TransectPreset } from "@/lib/section";
 
 interface SectionHeaderProps {
@@ -12,20 +15,59 @@ interface SectionHeaderProps {
   onDateChange: (date: string) => void;
 }
 
+/** Locked test-set window the section can be reconstructed for. */
+const MIN_DATE = new Date(2019, 0, 1);
+const MAX_DATE = new Date(2020, 11, 31);
+
+/** Parses `YYYY-MM-DD` in local time so day comparisons never shift across timezones. */
+function parseISODate(value: string): Date {
+  const [year, month, day] = value.split("-").map(Number);
+  return new Date(year, month - 1, day);
+}
+
 export function SectionHeader({
   date,
   preset,
   totalDistanceKm,
   onDateChange,
 }: SectionHeaderProps) {
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+  const pickerRef = useRef<HTMLDivElement | null>(null);
+  const selectedDate = useMemo(() => parseISODate(date), [date]);
+
   const stepDate = (days: number) => {
-    const d = new Date(date);
+    const d = parseISODate(date);
     d.setDate(d.getDate() + days);
-    const minDate = new Date("2019-01-01");
-    const maxDate = new Date("2020-12-31");
-    const clamped = d < minDate ? minDate : d > maxDate ? maxDate : d;
-    onDateChange(clamped.toISOString().split("T")[0]);
+    const clamped = d < MIN_DATE ? MIN_DATE : d > MAX_DATE ? MAX_DATE : d;
+    onDateChange(format(clamped, "yyyy-MM-dd"));
   };
+
+  const handleDateSelect = useCallback(
+    (next: Date) => {
+      onDateChange(format(next, "yyyy-MM-dd"));
+      setIsCalendarOpen(false);
+    },
+    [onDateChange]
+  );
+
+  // Dismiss the calendar on outside click or Escape
+  useEffect(() => {
+    if (!isCalendarOpen) return;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!pickerRef.current?.contains(event.target as Node)) setIsCalendarOpen(false);
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setIsCalendarOpen(false);
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isCalendarOpen]);
 
   return (
     <header className="flex flex-col gap-5 border-b border-white/15 pb-5 sm:flex-row sm:items-center sm:justify-between">
@@ -47,8 +89,8 @@ export function SectionHeader({
         </div>
       </div>
 
-      <div className="flex items-center">
-        {/* Date Selector Strip (Clean, without blue icon) */}
+      <div ref={pickerRef} className="relative flex items-center">
+        {/* Date Selector Strip */}
         <div className="flex items-center rounded-xl border border-white/20 bg-white/[0.04] p-1 shadow-[inset_0_1px_1px_rgba(255,255,255,0.15)] backdrop-blur-xl">
           <button
             type="button"
@@ -59,16 +101,19 @@ export function SectionHeader({
             <ChevronLeft size={16} />
           </button>
 
-          <div className="flex items-center px-2.5">
-            <input
-              type="date"
-              min="2019-01-01"
-              max="2020-12-31"
-              value={date}
-              onChange={(e) => onDateChange(e.target.value)}
-              className="bg-transparent font-mono text-xs font-semibold text-white focus:outline-none cursor-pointer"
-            />
-          </div>
+          <button
+            type="button"
+            onClick={() => setIsCalendarOpen((open) => !open)}
+            aria-expanded={isCalendarOpen}
+            aria-haspopup="dialog"
+            aria-label={`Change section date, currently ${format(selectedDate, "d MMMM yyyy")}`}
+            className={`flex items-center gap-2 rounded-lg px-2.5 py-1.5 font-mono text-xs font-semibold text-white transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200 ${
+              isCalendarOpen ? "bg-white/10" : ""
+            }`}
+          >
+            <CalendarDays aria-hidden="true" size={14} className="text-cyan-300" />
+            <span>{format(selectedDate, "dd MMM yyyy")}</span>
+          </button>
 
           <button
             type="button"
@@ -79,6 +124,18 @@ export function SectionHeader({
             <ChevronRight size={16} />
           </button>
         </div>
+
+        {isCalendarOpen && (
+          <GlassCalendar
+            role="dialog"
+            aria-label="Section date picker"
+            selectedDate={selectedDate}
+            onDateSelect={handleDateSelect}
+            minDate={MIN_DATE}
+            maxDate={MAX_DATE}
+            className="absolute right-0 top-full z-50 mt-2 w-[340px]"
+          />
+        )}
       </div>
     </header>
   );
