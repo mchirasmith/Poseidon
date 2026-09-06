@@ -207,7 +207,7 @@ All charts through one wrapper around Plotly so axis conventions (inverted depth
 
 ## 11. API contract
 
-Base URL from env `VITE_API_BASE`. All responses JSON unless noted. All dates `YYYY-MM-DD`. Lat/lon are cell centres on the 0.25 deg grid (x.125 convention).
+Base URL from env `NEXT_PUBLIC_API_BASE`. All responses JSON unless noted. All dates `YYYY-MM-DD`. Lat/lon are cell centres on the 0.25 deg grid (x.125 convention).
 
 ### `GET /api/meta`
 ```json
@@ -341,17 +341,21 @@ The demo must survive a dead backend.
 
 ## 18. Tech stack
 
-- Vite + React 18 + TypeScript.
-- Plotly.js (basic bundle) for charts and section heatmap.
+- Next.js 16, App Router, React 19, TypeScript.
+- Plotly.js for charts and the section heatmap, as a custom partial bundle: `plotly.js/lib/core` with scatter, scattergl, heatmap and contour registered. The basic bundle is not enough, it has no heatmap or contour trace, and the full and cartesian bundles blow the size budget in section 15.
 - Plain CSS 3D for the depth stack. No three.js.
-- React Router for routes and URL state.
-- Deploy: Vercel (frontend), backend on Render or a self-managed GPU box; `VITE_API_BASE` per environment.
+- App Router for routes. URL state through `useSearchParams` and `router.replace`.
+- Every page is a client component. Nothing is server-rendered; the app is a static client that talks to FastAPI. Plotly is loaded through `next/dynamic` with `ssr: false` because it touches `window` on import.
+- Deploy: Vercel (frontend), backend on Render or a self-managed GPU box; `NEXT_PUBLIC_API_BASE` per environment.
 
 Repo layout
 ```
 frontend/
   src/
-    pages/{Report,Explorer,Section,About}.tsx
+    app/
+      layout.tsx                              global shell, top bar, footer
+      page.tsx                                redirect to /report
+      {report,explore,section,about}/page.tsx
     components/...
     hooks/{useMeta,useDay,useRun,useProfile,useSection}.ts
     lib/{api.ts,scales.ts,depthAxis.ts,url.ts}
