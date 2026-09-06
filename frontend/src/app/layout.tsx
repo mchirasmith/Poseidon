@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Space_Grotesk, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import { TheInfiniteGrid } from "@/components/ui/the-infinite-grid";
+import KineticGrid from "@/components/ui/kinetic-grid";
 
 const spaceGrotesk = Space_Grotesk({
   variable: "--font-space-grotesk",
@@ -30,9 +30,9 @@ export default function RootLayout({
       className={`${spaceGrotesk.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-black text-white relative">
-        <TheInfiniteGrid theme="ocean">
+        <KineticGrid>
           {children}
-        </TheInfiniteGrid>
+        </KineticGrid>
       </body>
     </html>
   );
