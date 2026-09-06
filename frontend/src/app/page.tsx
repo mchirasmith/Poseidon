@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { ArrowRight, BarChart3, Compass, Spline } from "lucide-react";
+import { ArrowRight, BarChart3, Spline } from "lucide-react";
 import { FeatureCards } from "@/components/landing/feature-cards";
 import { TrackShiftSpinner } from "@/components/ui/trackshift-spinner";
 
@@ -45,14 +45,6 @@ export default function Home() {
               <Spline size={18} className="text-cyan-100" />
               <span>OCEAN SECTION</span>
               <ArrowRight size={16} className="transition-transform group-hover:translate-x-1" />
-            </Link>
-
-            <Link
-              href="/explore"
-              className="flex items-center gap-2 rounded-full border border-white/20 bg-white/[0.06] px-6 py-3.5 text-sm font-semibold tracking-wide text-white shadow-lg backdrop-blur-xl transition-all duration-300 hover:scale-[1.03] hover:border-white/30 hover:bg-white/[0.12]"
-            >
-              <Compass size={16} className="text-cyan-400" />
-              <span>3D EXPLORER</span>
             </Link>
 
             <Link
