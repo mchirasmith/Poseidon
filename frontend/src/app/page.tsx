@@ -18,8 +18,8 @@ export default function Home() {
     <>
       <TrackShiftSpinner
         isLoading={isLoading}
-        title="Initializing Poseidon System"
-        subtitle="AI-driven 3D ocean temperature reconstruction, please wait..."
+        title="Starting Poseidon"
+        subtitle="Loading the ocean temperature reconstruction..."
         isFullPage={true}
       />
 
@@ -32,7 +32,7 @@ export default function Home() {
               POSEIDON
             </h1>
             <p className="mx-auto max-w-2xl text-lg font-medium leading-relaxed text-neutral-200 drop-shadow md:text-xl">
-              Deep Ocean Temperature Intelligence. AI-driven 3D subsurface temperature reconstruction across 15 depth layers using only surface satellite observations.
+              Poseidon looks at the sea surface from satellites and works out the temperature below it, at 15 depths down to 1000 m, across the North Indian Ocean.
             </p>
           </div>
 

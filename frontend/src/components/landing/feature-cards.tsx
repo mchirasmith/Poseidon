@@ -18,8 +18,8 @@ interface Feature {
 const features: Feature[] = [
   {
     title: "Ocean Section",
-    summary: "Slice across custom ocean coordinates to view thermocline depth, D20 contour, and mixed layer depth.",
-    detail: "Draw an interactive ocean transect across custom coordinates or presets to inspect thermocline depth, D20 contours, and mixed-layer depth.",
+    summary: "Pick a day, draw a line across the sea, and see the temperature at every depth along it.",
+    detail: "Choose one of five showcase days, drag the two ends of the line anywhere in the basin, and read the reconstructed temperature from the surface to 1000 m, with the thermocline, the mixed layer and any Argo floats nearby.",
     action: "Draw Section",
     icon: Spline,
     accent: "text-emerald-400 border-emerald-500/20 bg-emerald-500/10",
@@ -28,8 +28,8 @@ const features: Feature[] = [
   },
   {
     title: "Validation Report",
-    summary: "Rigorous locked test set benchmarks (2019-2020) with Argo float comparisons and baseline models.",
-    detail: "Review benchmark performance across the locked 2019–2020 test set, including Argo float comparisons and baseline-model results.",
+    summary: "How accurate the model is, measured on two years it never saw, depth by depth.",
+    detail: "Every number here is averaged over the 731 test days of 2019 and 2020. Compare Poseidon with a gradient-boosted baseline and a seasonal climatology, and check that its uncertainty estimates are honest.",
     action: "View Metrics",
     icon: BarChart3,
     accent: "text-blue-400 border-blue-500/20 bg-blue-500/10",

@@ -93,10 +93,10 @@ export function buildDepthLayers(report: ReportJson): DepthLayerSkill[] {
 }
 
 export function fmt(value: number | null | undefined, digits = 2, suffix = ""): string {
-  return typeof value === "number" && Number.isFinite(value) ? `${value.toFixed(digits)}${suffix}` : "—";
+  return typeof value === "number" && Number.isFinite(value) ? `${value.toFixed(digits)}${suffix}` : "n/a";
 }
 
 export function fmtSigned(value: number | null | undefined, digits = 2, suffix = ""): string {
-  if (typeof value !== "number" || !Number.isFinite(value)) return "—";
+  if (typeof value !== "number" || !Number.isFinite(value)) return "n/a";
   return `${value >= 0 ? "+" : ""}${value.toFixed(digits)}${suffix}`;
 }

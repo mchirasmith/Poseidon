@@ -499,7 +499,7 @@ export function SectionHeatmap({
                       : `${activeFloat.day_offset! > 0 ? "+" : ""}${activeFloat.day_offset} day offset`}
                   </span>
                   <span>Depth Coverage:</span>
-                  <span className="text-right text-white/70">0 – 1000 m (15 layers)</span>
+                  <span className="text-right text-white/70">0 to 1000 m (15 layers)</span>
                   <span>Collocated Skill:</span>
                   <span className="text-right text-cyan-300 font-bold">RMSE ~0.34 °C</span>
                 </div>

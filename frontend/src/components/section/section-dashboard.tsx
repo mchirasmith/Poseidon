@@ -88,7 +88,7 @@ export function SectionDashboard() {
   const [isTaskLoading, setIsTaskLoading] = useState(false);
   const [loadingTitle, setLoadingTitle] = useState("Computing Vertical Section");
   const [loadingSubtitle, setLoadingSubtitle] = useState(
-    "Cutting the vertical section from the precomputed 15-layer reconstruction..."
+    "Cutting the slice through the reconstructed ocean..."
   );
 
   // Overlay visibility states
@@ -185,7 +185,7 @@ export function SectionDashboard() {
       setCoordB(preset.b);
       triggerLoading(
         `Loading ${preset.name}`,
-        `Re-projecting transect track across ${preset.basin.toUpperCase()} (${preset.a.lat}°N, ${preset.a.lon}°E → ${preset.b.lat}°N, ${preset.b.lon}°E)...`,
+        `Moving the line to ${preset.basin} (${preset.a.lat} N, ${preset.a.lon} E to ${preset.b.lat} N, ${preset.b.lon} E)...`,
         650
       );
     },
@@ -205,7 +205,7 @@ export function SectionDashboard() {
       };
       triggerLoading(
         `Switching to ${modeNames[newMode]}`,
-        "Recalculating cross-section thermal field and contours...",
+        "Redrawing the slice...",
         500
       );
     },
@@ -219,7 +219,7 @@ export function SectionDashboard() {
       setMapDepth(newDepth);
       triggerLoading(
         `Slicing Ocean at ${newDepth} m Depth`,
-        `Extracting horizontal depth plane from 3D volume at ${newDepth} m...`,
+        `Showing the map at ${newDepth} m...`,
         500
       );
     },
@@ -244,7 +244,7 @@ export function SectionDashboard() {
     return finiteMean(sectionData.sigma.flat());
   }, [sectionData]);
 
-  const fmtMetres = (v: number) => (Number.isFinite(v) ? `${Math.round(v)}` : "—");
+  const fmtMetres = (v: number) => (Number.isFinite(v) ? `${Math.round(v)}` : "n/a");
 
   // 4 headline metric cards matching validation report styling exactly
   const dynamicMetrics: ReportMetricDefinition[] = useMemo(() => {
@@ -252,7 +252,7 @@ export function SectionDashboard() {
       {
         label: "Transect Span",
         unit: "km",
-        sublabel: `great-circle distance across ${sectionData.lats.length} sampled grid cells`,
+        sublabel: `length of the line, sampled at ${sectionData.lats.length} grid cells of 0.25 degrees`,
         value: `${sectionData.totalDistanceKm}`,
         delta: "Great-Circle Arc",
         isPositiveDelta: true,
@@ -261,7 +261,7 @@ export function SectionDashboard() {
       {
         label: "D20 Thermocline",
         unit: "m",
-        sublabel: `mean 20°C isotherm depth along the transect for ${activeDate}`,
+        sublabel: `average depth where the water cools to 20 °C along the line on ${activeDate}`,
         value: fmtMetres(meanD20),
         delta: "Subsurface Core",
         isPositiveDelta: true,
@@ -270,7 +270,7 @@ export function SectionDashboard() {
       {
         label: "Mixed Layer Depth",
         unit: "m",
-        sublabel: "depth where T falls 0.2°C below its 10 m value, mean along slice",
+        sublabel: "average depth of the well-mixed surface layer along the line",
         value: fmtMetres(meanMLD),
         delta: "Wind-Driven MLD",
         isPositiveDelta: true,
@@ -279,8 +279,8 @@ export function SectionDashboard() {
       {
         label: "Mean Uncertainty",
         unit: "°C",
-        sublabel: `predicted 1σ across all 15 depth tiers`,
-        value: Number.isFinite(meanUncertainty) ? `±${meanUncertainty.toFixed(2)}` : "—",
+        sublabel: `how unsure the model is, averaged over the whole slice`,
+        value: Number.isFinite(meanUncertainty) ? `±${meanUncertainty.toFixed(2)}` : "n/a",
         delta: "Calibrated on 2018",
         isPositiveDelta: true,
         statusBadge: "1σ",
@@ -300,7 +300,7 @@ export function SectionDashboard() {
         title={isFieldsLoading ? `Loading ${activeDate}` : loadingTitle}
         subtitle={
           isFieldsLoading
-            ? "Fetching the precomputed 15-layer temperature reconstruction for this day..."
+            ? "Loading this day's reconstruction of the ocean..."
             : loadingSubtitle
         }
         isFullPage={true}
@@ -331,8 +331,8 @@ export function SectionDashboard() {
           {/* Section 1: Transect Navigation Map */}
           <section className="mt-5">
             <ReportPanel
-              title="Transect navigation · North Indian Ocean (A → B)"
-              description="Interactive great-circle ocean transect across custom coordinates or oceanographic presets at depth."
+              title="Where to cut"
+              description="This page shows one day. Drag the A and B handles anywhere in the sea, or pick a preset, and the slice below is cut along that line from the model's 3D reconstruction for the chosen date."
             >
               <TransectMap
                 a={coordA}
@@ -356,8 +356,8 @@ export function SectionDashboard() {
           {/* Section 3: Vertical Stratification Heatmap */}
           <section className="mt-6">
             <ReportPanel
-              title="Vertical Stratification Heatmap · 0 m to 1000 m"
-              description="Depth vs distance cross-section sampled on the nearest 0.25° grid cell, with D20 thermocline, mixed layer depth, and Argo floats within 55 km and ±2 days."
+              title="The slice, surface to 1000 m"
+              description="Distance along the line runs left to right, depth runs down. Each column is one 0.25 degree grid cell. Switch between the model, the GLORYS analysis, their difference and the model's uncertainty. Argo floats that surfaced within 55 km and two days are marked."
             >
               <SectionControls
                 mode={mode}
@@ -384,7 +384,7 @@ export function SectionDashboard() {
 
           <footer className="flex flex-col gap-3 py-10 text-xs text-white/45 sm:flex-row sm:items-center sm:justify-between">
             <span>
-              Precomputed held-out test days · {availableDates.length} curated dates bundled, no backend required.
+              {availableDates.length} showcase days from the 2019 and 2020 test period, computed once and bundled with the site.
             </span>
             <span className="flex items-center gap-2">
               <Waves aria-hidden="true" size={14} /> Poseidon ocean temperature intelligence

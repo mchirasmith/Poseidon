@@ -120,7 +120,7 @@ export function SectionControls({
               ? "border-white/40 bg-white/15 text-white shadow-[0_0_18px_rgba(255,255,255,0.2),inset_0_1px_1px_rgba(255,255,255,0.25)]"
               : "border-white/10 bg-white/[0.02] text-white/45 hover:border-white/20 hover:text-white/70"
           }`}
-          title="Toggle Mixed Layer Depth line (temperature criterion ΔT = 0.2°C)"
+          title="Show the bottom of the well-mixed surface layer (where the water is 0.2 °C cooler than at 10 m)"
         >
           <div className="flex items-center gap-1.5">
             <Minus
@@ -167,7 +167,7 @@ export function SectionControls({
               ? "border-white/40 bg-white/15 text-white shadow-[0_0_18px_rgba(255,255,255,0.2),inset_0_1px_1px_rgba(255,255,255,0.25)]"
               : "border-white/10 bg-white/[0.02] text-white/45 hover:border-white/20 hover:text-white/70"
           }`}
-          title="Toggle 20°C Isotherm contour (thermocline proxy)"
+          title="Show the depth where the water cools to 20 °C, a proxy for the thermocline"
         >
           <div className="flex items-center gap-1.5">
             <Waves
@@ -213,7 +213,7 @@ export function SectionControls({
               ? "border-white/40 bg-white/15 text-white shadow-[0_0_18px_rgba(255,255,255,0.2),inset_0_1px_1px_rgba(255,255,255,0.25)]"
               : "border-white/10 bg-white/[0.02] text-white/45 hover:border-white/20 hover:text-white/70"
           }`}
-          title="Toggle collocated independent Argo float validation profiles"
+          title="Show Argo floats that measured near this line, an independent check"
         >
           <div className="flex items-center gap-1.5">
             <Radio

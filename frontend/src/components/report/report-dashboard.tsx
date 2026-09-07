@@ -42,9 +42,10 @@ function ReportHeader({ layer, report }: { layer: OceanDepthLayer; report: Repor
           <h1 className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl">Validation report</h1>
         </div>
       </div>
-      <p className="font-mono text-xs text-white/50">
-        Held-out 2019–2020 test days vs GLORYS
-        {typeof n === "number" ? ` · ${n.toLocaleString()} Argo matchups` : ""}
+      <p className="max-w-xl text-sm leading-relaxed text-white/60">
+        This page is not a single day. Every number is an average over the 731 test days of 2019 and 2020,
+        which the model never trained on, compared with the GLORYS ocean analysis
+        {typeof n === "number" ? ` and with ${n.toLocaleString()} independent Argo float readings` : ""}.
       </p>
     </header>
   );
@@ -61,8 +62,8 @@ function SkillByDepthShell({
 }) {
   return (
     <ReportPanel
-      title="Skill by depth · 3D Ocean Stratification"
-      description="Interactive 15-layer subsurface temperature reconstruction from satellite surface observations for the North Indian Ocean (0 m to 1000 m)."
+      title="Accuracy by depth"
+      description="Pick a depth layer to see how well the model did there. The bars compare Poseidon with the gradient-boosted baseline and the seasonal climatology on the same days. Lower error is better."
     >
       <OceanDepthStack layers={layers} selectedIndex={selectedIndex} onSelectIndex={onSelectIndex} />
     </ReportPanel>
@@ -71,7 +72,7 @@ function SkillByDepthShell({
 
 const NOMINAL_LEVELS = [0.5, 0.8, 0.9, 0.95];
 
-function UncertaintyCalibrationCard({ layer, report }: { layer: OceanDepthLayer; report: ReportJson }) {
+function UncertaintyCalibrationCard({ report }: { report: ReportJson }) {
   const cal = report.calibration;
   const coverage = cal.coverage ?? {};
   const points = NOMINAL_LEVELS.map((nominal) => {
@@ -87,8 +88,8 @@ function UncertaintyCalibrationCard({ layer, report }: { layer: OceanDepthLayer;
 
   return (
     <ReportPanel
-      title="Uncertainty Calibration & Coverage"
-      description={`Nominal vs empirical coverage of the predicted intervals on the held-out test days, after temperature scaling fitted on the 2018 calibration year. The ${layer.depth} m layer (${layer.zone}) is selected above.`}
+      title="Are the error bars honest?"
+      description="The model predicts a range for every value. If it says 90 percent, the truth should fall inside that range about 90 percent of the time. Points on the dashed line mean the ranges are exactly right."
     >
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 items-center">
         <div className="lg:col-span-8 relative h-64 w-full overflow-hidden rounded-xl border border-white/10 bg-black/40 p-3">
@@ -134,17 +135,17 @@ function UncertaintyCalibrationCard({ layer, report }: { layer: OceanDepthLayer;
 
         <div className="lg:col-span-4 flex flex-col gap-3">
           <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
-            <span className="text-white/50 text-xs font-mono block">MEAN 90% INTERVAL WIDTH</span>
+            <span className="text-white/50 text-xs font-mono block">TYPICAL 90% RANGE</span>
             <span className="text-2xl font-bold font-mono text-cyan-300">{fmt(cal.mean_interval_width_90, 2, " °C")}</span>
-            <p className="mt-1 text-xs text-neutral-300/70 leading-relaxed">Average p90 − p10 spread over all wet cells and depths on the test days.</p>
+            <p className="mt-1 text-xs text-neutral-300/70 leading-relaxed">How wide the model&apos;s 90 percent range is on average, over every sea cell and depth on the test days.</p>
           </div>
           <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
-            <span className="text-white/50 text-xs font-mono block">EMPIRICAL COVERAGE (90% TARGET)</span>
+            <span className="text-white/50 text-xs font-mono block">HOW OFTEN THE 90% RANGE WAS RIGHT</span>
             <span className="text-2xl font-bold font-mono text-emerald-400">
-              {typeof cov90 === "number" ? `${(cov90 * 100).toFixed(1)}%` : "—"}
+              {typeof cov90 === "number" ? `${(cov90 * 100).toFixed(1)}%` : "n/a"}
             </span>
             <p className="mt-1 text-xs text-neutral-300/70 leading-relaxed">
-              NLL {fmt(cal.nll, 3)} · CRPS {fmt(cal.crps, 3, " °C")} across the {layer.tempMin.toFixed(1)}°–{layer.tempMax.toFixed(1)}°C range.
+              Probabilistic scores on the test days: NLL {fmt(cal.nll, 3)}, CRPS {fmt(cal.crps, 3, " °C")}.
             </p>
           </div>
         </div>
@@ -241,7 +242,7 @@ export function ReportDashboard() {
   const [isLayerLoading, setIsLayerLoading] = useState(false);
   const [loadingTitle, setLoadingTitle] = useState("Loading Validation Report");
   const [loadingSubtitle, setLoadingSubtitle] = useState(
-    "Fetching locked test-set benchmarks (2019–2020) and Argo matchup stats..."
+    "Reading the test results for 2019 and 2020..."
   );
   const [selectedIndex, setSelectedIndex] = useState<number>(7); // Default to 100m
 
@@ -272,7 +273,7 @@ export function ReportDashboard() {
       const targetLayer = layers[index];
       setLoadingTitle(`Evaluating ${targetLayer.depth} m Depth Tier`);
       setLoadingSubtitle(
-        `Reading held-out skill and Argo matchup statistics for ${targetLayer.depth} m (${targetLayer.zone})...`
+        `Reading the test results at ${targetLayer.depth} m (${targetLayer.zone})...`
       );
       setIsLayerLoading(true);
       setSelectedIndex(index);
@@ -293,16 +294,16 @@ export function ReportDashboard() {
       {
         label: "RMSE",
         unit: "°C",
-        sublabel: `vs GLORYS at ${selectedLayer.depth} m (${selectedLayer.zone}), held-out test days`,
+        sublabel: `typical error at ${selectedLayer.depth} m over the 731 test days`,
         value: fmt(model),
-        delta: Number.isFinite(skillPct) ? `${skillPct >= 0 ? "-" : "+"}${Math.abs(skillPct)}% vs Climatology` : "—",
+        delta: Number.isFinite(skillPct) ? `${skillPct >= 0 ? "-" : "+"}${Math.abs(skillPct)}% vs Climatology` : "n/a",
         isPositiveDelta: Number.isFinite(skillPct) && skillPct >= 0,
         statusBadge: selectedLayer.isD20Isotherm ? "D20 ISOTHERM" : selectedLayer.isMLD ? "MLD BASE" : "LAYER EVAL",
       },
       {
         label: "Bias",
         unit: "°C",
-        sublabel: `mean error across the ${selectedLayer.depth} m slice`,
+        sublabel: `average error at ${selectedLayer.depth} m: positive means too warm`,
         value: fmtSigned(selectedLayer.bias),
         delta: Number.isFinite(selectedLayer.bias) && Math.abs(selectedLayer.bias) < 0.25 ? "Zero-Centered" : "Systematic",
         isPositiveDelta: Number.isFinite(selectedLayer.bias) && Math.abs(selectedLayer.bias) < 0.25,
@@ -311,7 +312,7 @@ export function ReportDashboard() {
       {
         label: "Correlation",
         unit: "",
-        sublabel: `spatial coherence with GLORYS at ${selectedLayer.depth} m`,
+        sublabel: `how well the map pattern matches GLORYS at ${selectedLayer.depth} m`,
         value: fmt(selectedLayer.correlation, 3),
         delta: "Pearson R",
         isPositiveDelta: Number.isFinite(selectedLayer.correlation) && selectedLayer.correlation > 0.5,
@@ -320,7 +321,7 @@ export function ReportDashboard() {
       {
         label: "CRPS",
         unit: "°C",
-        sublabel: "probabilistic score, all depths and test days",
+        sublabel: "score for the whole predicted range, all depths and test days",
         value: fmt(crps),
         delta: `skill score ${fmt(selectedLayer.skillScore, 2)} at ${selectedLayer.depth} m`,
         isPositiveDelta: Number.isFinite(selectedLayer.skillScore) && selectedLayer.skillScore > 0,
@@ -358,7 +359,7 @@ export function ReportDashboard() {
         title={isLoading ? "Loading Validation Report" : loadingTitle}
         subtitle={
           isLoading
-            ? "Fetching locked test-set benchmarks (2019–2020) and Argo matchup stats..."
+            ? "Reading the test results for 2019 and 2020..."
             : loadingSubtitle
         }
         isFullPage={true}
@@ -386,18 +387,18 @@ export function ReportDashboard() {
         {report && (
           <>
             <section className="mt-6">
-              <UncertaintyCalibrationCard layer={selectedLayer} report={report} />
+              <UncertaintyCalibrationCard report={report} />
             </section>
             <section className="mt-6 grid gap-6 lg:grid-cols-2">
               <TableShell
-                title={`Per-basin & per-season summary · ${selectedLayer.depth} m`}
-                description={`Poseidon lite vs GLORYS at ${selectedLayer.depth} m across sub-basins and monsoon seasons of the held-out test days. Skill is 1 − MSE / MSE(climatology).`}
+                title={`By basin and season, ${selectedLayer.depth} m`}
+                description={`The same accuracy split by sea and by monsoon season. Skill is how much of the climatology's error the model removes: 1 is perfect, 0 is no better than climatology.`}
                 columns={["Slice", "RMSE", "Bias", "Correlation", "Skill"]}
                 rows={basinSeasonRows}
               />
               <TableShell
-                title={`Baselines · ${selectedLayer.depth} m benchmark`}
-                description={`The three exported models evaluated on the same test days at the ${selectedLayer.depth} m depth slice.`}
+                title={`Compared with the baselines, ${selectedLayer.depth} m`}
+                description={`The three models scored on exactly the same days and cells at ${selectedLayer.depth} m.`}
                 columns={["Method", "RMSE", "Bias", "Correlation", "Skill"]}
                 rows={baselinesRows}
                 highlightFirstRow={true}
@@ -406,7 +407,7 @@ export function ReportDashboard() {
           </>
         )}
         <footer className="flex flex-col gap-3 py-10 text-xs text-white/45 sm:flex-row sm:items-center sm:justify-between">
-          <span>Read-only validation workspace · numbers come from the precomputed report, no backend required.</span>
+          <span>Averages over 731 test days on the 0.25 degree grid. Computed once and bundled with the site, so nothing runs live.</span>
           <span className="flex items-center gap-2">
             <Waves aria-hidden="true" size={14} /> Poseidon ocean temperature intelligence
           </span>

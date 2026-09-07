@@ -270,7 +270,7 @@ export function OceanDepthStack({
           {/* Subtle Stage Grid and Coordinate Overlay */}
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(34,211,238,0.06),transparent_70%)]" />
           <div className="pointer-events-none absolute left-5 top-4 font-mono text-[10px] text-white/40">
-            <span>BAY OF BENGAL & ARABIAN SEA (5°N–28°N, 45°E–100°E)</span>
+            <span>ARABIAN SEA AND BAY OF BENGAL (5 TO 30 N, 45 TO 105 E)</span>
           </div>
           <div className="pointer-events-none absolute right-5 top-4 font-mono text-[10px] text-cyan-300/80">
             <span>15 RECONSTRUCTED DEPTH LAYERS</span>
@@ -510,13 +510,13 @@ export function OceanDepthStack({
               <div className="grid grid-cols-2 gap-3 pt-1">
                 <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3">
                   <span className="text-[10px] uppercase tracking-wider text-white/45 font-mono">
-                    Mean Temperature
+                    Typical Temperature
                   </span>
                   <p className="mt-1 font-mono text-xl font-semibold text-white">
                     {selectedLayer.tempMean.toFixed(1)} °C
                   </p>
                   <span className="text-[10px] text-white/40">
-                    Range: {selectedLayer.tempMin.toFixed(1)}° – {selectedLayer.tempMax.toFixed(1)}°
+                    Usually {selectedLayer.tempMin.toFixed(1)} to {selectedLayer.tempMax.toFixed(1)} °C
                   </span>
                 </div>
 
@@ -537,7 +537,7 @@ export function OceanDepthStack({
               <div className="flex flex-col gap-2 rounded-xl border border-white/10 bg-white/[0.02] p-3">
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-white/60">Benchmark Skill vs Baselines</span>
-                  <span className="font-mono text-[10px] text-cyan-300">GLORYS 2019–2020</span>
+                  <span className="font-mono text-[10px] text-cyan-300">test days 2019 and 2020</span>
                 </div>
 
                 {/* Poseidon bar */}
@@ -602,7 +602,7 @@ export function OceanDepthStack({
       <div className="flex items-center gap-2 text-xs text-white/45">
         <Info size={14} className="text-cyan-300/70 shrink-0" />
         <span>
-          Interactive 15-depth oceanographic volume for the North Indian Ocean basin. Click any layer or use the scrubber below to inspect temperature stratifications from the sunlit surface to 1000m.
+          Click a layer, or drag the slider below, to move from the surface down to 1000 m. The bars on the right show the error at that depth.
         </span>
       </div>
     </div>
