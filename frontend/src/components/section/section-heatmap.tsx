@@ -236,26 +236,24 @@ export function SectionHeatmap({
 
   const handlePointerLeave = () => setHoverPos(null);
 
-  // SVG Paths for D20 and MLD contours
-  const d20Path = useMemo(() => {
-    return d20_m
-      .map((d, i) => {
-        const x = (i / (d20_m.length - 1)) * 100;
-        const y = depthToNormY(d) * 100;
-        return `${i === 0 ? "M" : "L"} ${x.toFixed(2)} ${y.toFixed(2)}`;
-      })
-      .join(" ");
-  }, [d20_m]);
-
-  const mldPath = useMemo(() => {
-    return mld_m
-      .map((d, i) => {
-        const x = (i / (mld_m.length - 1)) * 100;
-        const y = depthToNormY(d) * 100;
-        return `${i === 0 ? "M" : "L"} ${x.toFixed(2)} ${y.toFixed(2)}`;
-      })
-      .join(" ");
-  }, [mld_m]);
+  // SVG Paths for D20 and MLD contours; a column without the feature (NaN) breaks the line
+  const contourPath = (depths: number[]) => {
+    let path = "";
+    let pen = false;
+    depths.forEach((d, i) => {
+      if (!Number.isFinite(d)) {
+        pen = false;
+        return;
+      }
+      const x = (i / (depths.length - 1)) * 100;
+      const y = depthToNormY(d) * 100;
+      path += `${pen ? "L" : "M"} ${x.toFixed(2)} ${y.toFixed(2)} `;
+      pen = true;
+    });
+    return path.trim();
+  };
+  const d20Path = useMemo(() => contourPath(d20_m), [d20_m]);
+  const mldPath = useMemo(() => contourPath(mld_m), [mld_m]);
 
   // Dismiss tooltip when user scrolls the page
   useEffect(() => {

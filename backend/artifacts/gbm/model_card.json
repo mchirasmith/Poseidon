@@ -1,0 +1,15 @@
+{
+  "name": "poseidon-gbm",
+  "git_sha": "f5886ed8f79baf20d3d4d954e447223e171e66d6",
+  "config_hash": "612256eb0d7c",
+  "data_hash": "7a9c149fa46e3354bfbfe20c8908550b8fabf09cd17e86f5d309bf92704f3a7e",
+  "train_years": [
+    2016,
+    2016
+  ],
+  "rows": 2000000,
+  "dev_metrics": {
+    "rmse_mean": 1.1710880919196542
+  },
+  "validated": true
+}

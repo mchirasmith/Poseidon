@@ -174,6 +174,12 @@ def _write_fallback(backend: LiveBackend, model: str, test_dates: list[str], fal
     meta["cached_days"] = dates
     (fallback_dir / "meta.json").write_text(json.dumps(_rewrite_urls(meta), default=str))
 
+    # days dropped from the curated list would otherwise linger in the static bundle forever
+    for sub in ("days", "tiles"):
+        for stale in (fallback_dir / sub).iterdir():
+            if stale.is_dir() and stale.name != "report" and stale.name not in dates:
+                shutil.rmtree(stale)
+
     lat, lon = _center_ocean_cell(backend.engine.store)
     for date in dates:
         if not backend.is_cached(date, model):
