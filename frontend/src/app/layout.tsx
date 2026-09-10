@@ -14,9 +14,17 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const description =
+  "Subsurface 3D ocean temperature reconstruction from satellite surface observations for the North Indian Ocean (SIH 2026).";
+
 export const metadata: Metadata = {
   title: "Varuna | Deep Ocean Temperature AI",
-  description: "Subsurface 3D ocean temperature reconstruction from satellite surface observations for the North Indian Ocean (SIH 2026).",
+  description,
+  openGraph: {
+    title: "Varuna | Deep Ocean Temperature AI",
+    description,
+    type: "website",
+  },
 };
 
 export default function RootLayout({
