@@ -12,7 +12,7 @@ interface TrackShiftSpinnerProps {
 export function TrackShiftSpinner({
   isLoading,
   title = "Computing Optimal Reconstruction",
-  subtitle = "Running Poseidon neural model, please wait (this takes a few seconds)",
+  subtitle = "Running Varuna neural model, please wait (this takes a few seconds)",
   isFullPage = true,
 }: TrackShiftSpinnerProps) {
   return (

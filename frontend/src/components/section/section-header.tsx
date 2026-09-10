@@ -78,7 +78,7 @@ export function SectionHeader({
     <header className="flex flex-col gap-5 border-b border-white/15 pb-5 sm:flex-row sm:items-center sm:justify-between">
       <div className="flex items-center gap-4">
         <Link
-          aria-label="Back to Poseidon home"
+          aria-label="Back to Varuna home"
           className="grid size-10 place-items-center rounded-full border border-white/20 bg-white/[0.05] text-white/80 shadow-[inset_0_1px_1px_rgba(255,255,255,0.35)] backdrop-blur-xl transition-all duration-200 hover:scale-105 hover:border-white/40 hover:bg-white/[0.10] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200"
           href="/"
         >
@@ -86,7 +86,7 @@ export function SectionHeader({
         </Link>
         <div>
           <p className="font-mono text-xs uppercase tracking-[0.22em] text-cyan-200/80">
-            Poseidon / section · {preset?.name || "Custom Transect"} ({totalDistanceKm} km)
+            Varuna / section · {preset?.name || "Custom Transect"} ({totalDistanceKm} km)
             {dayLabel ? ` · ${dayLabel}` : ""}
           </p>
           <h1 className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl text-white">

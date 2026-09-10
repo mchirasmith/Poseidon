@@ -36,7 +36,7 @@ export interface ReportJson {
 }
 
 export const MODEL_LABELS: Record<ReportModel, string> = {
-  lite: "Poseidon lite",
+  lite: "Varuna lite",
   gbm: "Gradient-boosted baseline",
   climatology: "Harmonic climatology",
 };
@@ -83,7 +83,7 @@ export interface DepthLayerSkill extends OceanDepthLayer {
 export function buildDepthLayers(report: ReportJson): DepthLayerSkill[] {
   return OCEAN_DEPTH_LAYERS.map((layer, i) => ({
     ...layer,
-    rmsePoseidon: depthMetric(report, "lite", "rmse", i),
+    rmseVaruna: depthMetric(report, "lite", "rmse", i),
     rmseClimatology: depthMetric(report, "climatology", "rmse", i),
     rmseGbm: depthMetric(report, "gbm", "rmse", i),
     correlation: depthMetric(report, "lite", "r", i),

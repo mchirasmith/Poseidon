@@ -198,7 +198,7 @@ export function SectionDashboard() {
       if (newMode === mode) return;
       setMode(newMode);
       const modeNames: Record<SectionMode, string> = {
-        poseidon: "Poseidon Model Prediction",
+        poseidon: "Varuna Model Prediction",
         glorys: "GLORYS Reanalysis Baseline",
         diff: "Model vs Baseline Difference",
         sigma: "Ensemble Uncertainty Spread (1σ)",
@@ -387,7 +387,7 @@ export function SectionDashboard() {
               {availableDates.length} showcase days from the 2019 and 2020 test period, computed once and bundled with the site.
             </span>
             <span className="flex items-center gap-2">
-              <Waves aria-hidden="true" size={14} /> Poseidon ocean temperature intelligence
+              <Waves aria-hidden="true" size={14} /> Varuna ocean temperature intelligence
             </span>
           </footer>
         </div>

@@ -15,7 +15,7 @@ export function SectionLoader({ date, isFullPage = false }: SectionLoaderProps) 
       subtitle={
         date
           ? `Inverting 15-layer temperature stratification from surface satellite fields for ${date}...`
-          : "Running Poseidon neural inversion across 15 depth tiers, please wait (this takes a few seconds)..."
+          : "Running Varuna neural inversion across 15 depth tiers, please wait (this takes a few seconds)..."
       }
       isFullPage={isFullPage}
     />

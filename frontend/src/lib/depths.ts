@@ -1,5 +1,5 @@
 /**
- * Canonical discrete depth axis supplied by the Poseidon product contract.
+ * Canonical discrete depth axis supplied by the Varuna product contract.
  * These coordinates describe selectable layers only; they are not measurements.
  */
 export const OCEAN_DEPTHS_M = [0, 5, 10, 20, 30, 50, 75, 100, 125, 150, 200, 300, 500, 700, 1000] as const;

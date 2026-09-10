@@ -29,7 +29,7 @@ const features: Feature[] = [
   {
     title: "Validation Report",
     summary: "How accurate the model is, measured on two years it never saw, depth by depth.",
-    detail: "Every number here is averaged over the 731 test days of 2019 and 2020. Compare Poseidon with a gradient-boosted baseline and a seasonal climatology, and check that its uncertainty estimates are honest.",
+    detail: "Every number here is averaged over the 731 test days of 2019 and 2020. Compare Varuna with a gradient-boosted baseline and a seasonal climatology, and check that its uncertainty estimates are honest.",
     action: "View Metrics",
     icon: BarChart3,
     accent: "text-blue-400 border-blue-500/20 bg-blue-500/10",

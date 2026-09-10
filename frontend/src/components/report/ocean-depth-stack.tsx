@@ -54,7 +54,7 @@ export function OceanDepthStack({
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
 
   const selectedLayer = layers[selectedIndex];
-  const rmseScale = Math.max(1.5, selectedLayer.rmsePoseidon, selectedLayer.rmseGbm, selectedLayer.rmseClimatology);
+  const rmseScale = Math.max(1.5, selectedLayer.rmseVaruna, selectedLayer.rmseGbm, selectedLayer.rmseClimatology);
 
   // Auto-play animation: step through layers sequentially
   useEffect(() => {
@@ -81,7 +81,7 @@ export function OceanDepthStack({
     }
     if (metricMode === "rmse") {
       // Lower RMSE is better (cyan to dark blue)
-      const errorRatio = (layer.rmsePoseidon - 0.15) / (0.52 - 0.15);
+      const errorRatio = (layer.rmseVaruna - 0.15) / (0.52 - 0.15);
       const color = errorRatio < 0.3 
         ? "rgba(34, 211, 238, 0.7)" 
         : errorRatio < 0.7 
@@ -90,7 +90,7 @@ export function OceanDepthStack({
       return {
         fill: color,
         stroke: "rgba(255, 255, 255, 0.4)",
-        badgeText: `±${layer.rmsePoseidon.toFixed(2)}°C`,
+        badgeText: `±${layer.rmseVaruna.toFixed(2)}°C`,
       };
     }
     // Bias mode: the model's mean error at this depth
@@ -165,7 +165,7 @@ export function OceanDepthStack({
 
   const skillGain = useMemo(() => {
     const baseline = selectedLayer.rmseClimatology;
-    const model = selectedLayer.rmsePoseidon;
+    const model = selectedLayer.rmseVaruna;
     return Math.round(((baseline - model) / baseline) * 100);
   }, [selectedLayer]);
 
@@ -522,10 +522,10 @@ export function OceanDepthStack({
 
                 <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3">
                   <span className="text-[10px] uppercase tracking-wider text-white/45 font-mono">
-                    Poseidon RMSE
+                    Varuna RMSE
                   </span>
                   <p className="mt-1 font-mono text-xl font-semibold text-cyan-300">
-                    ±{selectedLayer.rmsePoseidon.toFixed(2)} °C
+                    ±{selectedLayer.rmseVaruna.toFixed(2)} °C
                   </p>
                   <span className="text-[10px] text-emerald-400 font-medium">
                     {skillGain >= 0 ? "+" : ""}{skillGain}% vs Climatology
@@ -540,16 +540,16 @@ export function OceanDepthStack({
                   <span className="font-mono text-[10px] text-cyan-300">test days 2019 and 2020</span>
                 </div>
 
-                {/* Poseidon bar */}
+                {/* Varuna bar */}
                 <div className="flex flex-col gap-1">
                   <div className="flex justify-between text-[10px] font-mono">
-                    <span className="text-cyan-200">Poseidon (AI)</span>
-                    <span className="text-cyan-200 font-semibold">{selectedLayer.rmsePoseidon.toFixed(2)}°C</span>
+                    <span className="text-cyan-200">Varuna (AI)</span>
+                    <span className="text-cyan-200 font-semibold">{selectedLayer.rmseVaruna.toFixed(2)}°C</span>
                   </div>
                   <div className="h-2 w-full overflow-hidden rounded-full bg-white/10">
                     <div
                       className="h-full rounded-full bg-gradient-to-r from-cyan-400 to-blue-500"
-                      style={{ width: `${Math.min(100, (selectedLayer.rmsePoseidon / rmseScale) * 100)}%` }}
+                      style={{ width: `${Math.min(100, (selectedLayer.rmseVaruna / rmseScale) * 100)}%` }}
                     />
                   </div>
                 </div>

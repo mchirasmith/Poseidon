@@ -94,7 +94,7 @@ export function SectionHeatmap({
         };
       case "diff":
         return {
-          title: "Model difference (Poseidon − GLORYS)",
+          title: "Model difference (Varuna − GLORYS)",
           min: "-3.0 °C",
           mid: "0.0 °C",
           max: "+3.0 °C",

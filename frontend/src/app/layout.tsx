@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Poseidon | Deep Ocean Temperature AI",
+  title: "Varuna | Deep Ocean Temperature AI",
   description: "Subsurface 3D ocean temperature reconstruction from satellite surface observations for the North Indian Ocean (SIH 2026).",
 };
 

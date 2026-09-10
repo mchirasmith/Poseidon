@@ -18,7 +18,7 @@ export default function Home() {
     <>
       <TrackShiftSpinner
         isLoading={isLoading}
-        title="Starting Poseidon"
+        title="Starting Varuna"
         subtitle="Loading the ocean temperature reconstruction..."
         isFullPage={true}
       />
@@ -29,10 +29,10 @@ export default function Home() {
           {/* Title & Tagline */}
           <div className="space-y-4">
             <h1 className="select-none text-6xl font-bold leading-[0.9] tracking-tighter text-[#0070c0] uppercase drop-shadow-md md:text-8xl lg:text-[110px]">
-              POSEIDON
+              VARUNA
             </h1>
             <p className="mx-auto max-w-2xl text-lg font-medium leading-relaxed text-neutral-200 drop-shadow md:text-xl">
-              Poseidon looks at the sea surface from satellites and works out the temperature below it, at 15 depths down to 1000 m, across the North Indian Ocean.
+              Varuna looks at the sea surface from satellites and works out the temperature below it, at 15 depths down to 1000 m, across the North Indian Ocean.
             </p>
           </div>
 

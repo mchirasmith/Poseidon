@@ -29,7 +29,7 @@ function ReportHeader({ layer, report }: { layer: OceanDepthLayer; report: Repor
     <header className="flex flex-col gap-5 border-b border-white/15 pb-5 lg:flex-row lg:items-center lg:justify-between">
       <div className="flex items-center gap-4">
         <Link
-          aria-label="Back to Poseidon home"
+          aria-label="Back to Varuna home"
           className="grid size-10 place-items-center rounded-full border border-white/20 bg-white/[0.05] text-white/80 shadow-[inset_0_1px_1px_rgba(255,255,255,0.35)] backdrop-blur-xl transition-all duration-200 hover:scale-105 hover:border-white/40 hover:bg-white/[0.10] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200"
           href="/"
         >
@@ -37,7 +37,7 @@ function ReportHeader({ layer, report }: { layer: OceanDepthLayer; report: Repor
         </Link>
         <div>
           <p className="font-mono text-xs uppercase tracking-[0.22em] text-cyan-200/80">
-            Poseidon / report · {layer.depth} m ({layer.zone})
+            Varuna / report · {layer.depth} m ({layer.zone})
           </p>
           <h1 className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl">Validation report</h1>
         </div>
@@ -63,7 +63,7 @@ function SkillByDepthShell({
   return (
     <ReportPanel
       title="Accuracy by depth"
-      description="Pick a depth layer to see how well the model did there. The bars compare Poseidon with the gradient-boosted baseline and the seasonal climatology on the same days. Lower error is better."
+      description="Pick a depth layer to see how well the model did there. The bars compare Varuna with the gradient-boosted baseline and the seasonal climatology on the same days. Lower error is better."
     >
       <OceanDepthStack layers={layers} selectedIndex={selectedIndex} onSelectIndex={onSelectIndex} />
     </ReportPanel>
@@ -286,7 +286,7 @@ export function ReportDashboard() {
 
   const dynamicMetrics = useMemo(() => {
     const baseline = selectedLayer.rmseClimatology;
-    const model = selectedLayer.rmsePoseidon;
+    const model = selectedLayer.rmseVaruna;
     const skillPct = Number.isFinite(baseline) && Number.isFinite(model) && baseline > 0 ? Math.round(((baseline - model) / baseline) * 100) : NaN;
     const crps = report?.calibration.crps;
 
@@ -409,7 +409,7 @@ export function ReportDashboard() {
         <footer className="flex flex-col gap-3 py-10 text-xs text-white/45 sm:flex-row sm:items-center sm:justify-between">
           <span>Averages over 731 test days on the 0.25 degree grid. Computed once and bundled with the site, so nothing runs live.</span>
           <span className="flex items-center gap-2">
-            <Waves aria-hidden="true" size={14} /> Poseidon ocean temperature intelligence
+            <Waves aria-hidden="true" size={14} /> Varuna ocean temperature intelligence
           </span>
         </footer>
       </div>

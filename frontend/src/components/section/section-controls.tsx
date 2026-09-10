@@ -42,9 +42,9 @@ export function SectionControls({
   const prefersReducedMotion = useReducedMotion();
 
   const modes: { id: SectionMode; label: string; icon: typeof Activity; badge: string }[] = [
-    { id: "poseidon", label: "Poseidon Model", icon: Thermometer, badge: "Reconstructed" },
+    { id: "poseidon", label: "Varuna Model", icon: Thermometer, badge: "Reconstructed" },
     { id: "glorys", label: "GLORYS Baseline", icon: Layers, badge: "Reanalysis" },
-    { id: "diff", label: "Difference", icon: Activity, badge: "Poseidon − GLORYS" },
+    { id: "diff", label: "Difference", icon: Activity, badge: "Varuna − GLORYS" },
     { id: "sigma", label: "Uncertainty (1σ)", icon: ShieldCheck, badge: "Confidence Spread" },
   ];
 
